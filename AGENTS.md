@@ -10,7 +10,7 @@
 - Build debug: `cargo build` — compiles the crate.
 - Run CLI: `cargo run -- <roots> --depth 1` (example: `cargo run -- ~/src --depth 2`).
 - Release build: `cargo build --release` — optimized binary in `target/release/uncommitted`.
-- Lint: `cargo clippy -- -D warnings` — enforce no warnings.
+- Lint: `cargo clippy -- -D warnings -D clippy::pedantic` — treat all and pedantic lints as errors.
 - Format: `cargo fmt --all` — apply `rustfmt` conventions.
 - Tests: `cargo test` — runs unit/integration tests when present.
 

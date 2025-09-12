@@ -1,3 +1,6 @@
+#![forbid(unsafe_code)]
+#![deny(warnings, clippy::all, clippy::pedantic)]
+
 use clap::Parser;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -24,20 +27,20 @@ struct Args {
 }
 
 fn expand_tilde(p: &Path) -> PathBuf {
-    if let Ok(home) = std::env::var("HOME") {
+    if let Some(home) = std::env::var_os("HOME") {
         let home = PathBuf::from(home);
-        if p.starts_with("~") {
-            return home.join(p.strip_prefix("~").unwrap());
+        if p.starts_with("~") && let Ok(rest) = p.strip_prefix("~") {
+            return home.join(rest);
         }
     }
     p.to_path_buf()
 }
 
-fn run_git<S: AsRef<str>>(repo: &Path, args: &[S]) -> std::io::Result<std::process::Output> {
+fn run_git(repo: &Path, args: &[&str]) -> std::io::Result<std::process::Output> {
     Command::new("git")
         .arg("-C")
         .arg(repo)
-        .args(args.iter().map(|s| s.as_ref()))
+        .args(args)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .output()
@@ -69,7 +72,7 @@ fn find_repos(roots: &[PathBuf], depth: usize, debug: bool) -> Vec<PathBuf> {
         }
 
         // Search for ".git" dir up to depth+1 (so we can see children of root)
-        let max_depth = depth + 1;
+        let max_depth = depth.saturating_add(1);
         for entry in WalkDir::new(&root)
             .max_depth(max_depth)
             .follow_links(false)
@@ -78,45 +81,45 @@ fn find_repos(roots: &[PathBuf], depth: usize, debug: bool) -> Vec<PathBuf> {
         {
             let p = entry.path();
             // We only care about directories named ".git"
-            if entry.file_type().is_dir() && p.file_name().map(|n| n == ".git").unwrap_or(false) {
-                if let Some(parent) = p.parent() {
-                    if debug {
-                        eprintln!("[debug] repo: {}", parent.display());
-                    }
-                    repos.insert(parent.to_path_buf());
+            if entry.file_type().is_dir()
+                && p.file_name().is_some_and(|n| n == ".git")
+                && let Some(parent) = p.parent()
+            {
+                if debug {
+                    eprintln!("[debug] repo: {}", parent.display());
                 }
+                repos.insert(parent.to_path_buf());
             }
         }
     }
 
     let mut v: Vec<_> = repos.into_iter().collect();
-    v.sort_by(|a, b| a.file_name().cmp(&b.file_name()));
+    v.sort_unstable_by(|a, b| a.file_name().cmp(&b.file_name()));
     v
 }
 
 fn has_uncommitted(repo: &Path, include_untracked: bool) -> bool {
     // unstaged changes
     if let Ok(out) = run_git(repo, &["diff", "--quiet", "--ignore-submodules", "--", "."]) {
-        if out.status.code().unwrap_or(1) != 0 {
+        if !out.status.success() {
             return true;
         }
     } else {
         return false; // can't run git; treat as clean
     }
 
-    if include_untracked {
-        if let Ok(out) = run_git(repo, &["ls-files", "--others", "--exclude-standard"]) {
-            if !String::from_utf8_lossy(&out.stdout).trim().is_empty() {
-                return true;
-            }
-        }
+    if include_untracked
+        && let Ok(out) = run_git(repo, &["ls-files", "--others", "--exclude-standard"])
+        && !String::from_utf8_lossy(&out.stdout).trim().is_empty()
+    {
+        return true;
     }
     false
 }
 
 fn has_staged(repo: &Path) -> bool {
     if let Ok(out) = run_git(repo, &["diff", "--cached", "--quiet", "--ignore-submodules", "--", "."]) {
-        return out.status.code().unwrap_or(1) != 0;
+        return !out.status.success();
     }
     false
 }
@@ -130,12 +133,13 @@ fn ahead_of_upstream(repo: &Path) -> (bool, bool) {
         if !u.status.success() {
             return (false, false);
         }
-        let upstream = String::from_utf8_lossy(&u.stdout).trim().to_string();
+        let upstream = String::from_utf8_lossy(&u.stdout);
+        let upstream = upstream.trim();
         if upstream.is_empty() {
             return (false, false);
         }
         if let Ok(cnt) = run_git(repo, &["rev-list", "--count", &format!("{upstream}..HEAD")]) {
-            let n = String::from_utf8_lossy(&cnt.stdout).trim().parse::<i64>().unwrap_or(0);
+            let n = String::from_utf8_lossy(&cnt.stdout).trim().parse::<u64>().unwrap_or(0);
             return (n > 0, true);
         }
     }
@@ -189,9 +193,7 @@ fn main() {
         }
     }
 
-    let join = |v: Vec<String>| -> String {
-        if v.is_empty() { "".into() } else { v.join(", ") }
-    };
+    let join = |v: Vec<String>| v.join(", ");
 
     println!("uncommitted: {}", join(uncommitted));
     println!("staged: {}", join(staged));
