@@ -234,10 +234,11 @@ fn push_metrics(repo: &Path) -> Option<PushMetrics> {
         }
     }
 
+    // "earliest" means oldest (largest age); "latest" means newest (smallest age)
     Some(PushMetrics {
         ahead,
-        earliest_age: min_age,
-        latest_age: max_age,
+        earliest_age: max_age,
+        latest_age: min_age,
     })
 }
 
