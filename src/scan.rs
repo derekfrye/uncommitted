@@ -1,5 +1,4 @@
-#![forbid(unsafe_code)]
-#![deny(warnings, clippy::all, clippy::pedantic)]
+ 
 
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -51,4 +50,3 @@ pub fn find_repos(fs: &dyn FsOps, roots: &[PathBuf], depth: usize, debug: bool) 
     v.sort_unstable_by(|a, b| a.file_name().cmp(&b.file_name()));
     v
 }
-

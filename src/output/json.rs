@@ -1,7 +1,7 @@
-#![forbid(unsafe_code)]
-#![deny(warnings, clippy::all, clippy::pedantic)]
+ 
 
 use crate::ReportData;
+use std::fmt::Write as _;
 
 fn json_escape(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
@@ -14,7 +14,7 @@ fn json_escape(s: &str) -> String {
             '\t' => out.push_str("\\t"),
             c if c.is_control() => {
                 let code = c as u32;
-                let _ = std::fmt::Write::write_fmt(&mut out, format_args!("\\u{:04x}", code));
+                let _ = std::fmt::Write::write_fmt(&mut out, format_args!("\\u{code:04x}"));
             }
             other => out.push(other),
         }
@@ -22,6 +22,7 @@ fn json_escape(s: &str) -> String {
     out
 }
 
+#[must_use]
 pub fn to_json(data: &ReportData) -> String {
     let mut out = String::new();
     out.push('{');
@@ -39,13 +40,13 @@ fn write_uncommitted(out: &mut String, data: &ReportData) {
             out.push_str(", ");
         }
         out.push('{');
-        let _ = std::fmt::Write::write_fmt(
+        let _ = write!(
             out,
-            format_args!(
-                "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}",
-                json_escape(&e.repo),
-                e.lines, e.files, e.untracked
-            ),
+            "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}",
+            json_escape(&e.repo),
+            e.lines,
+            e.files,
+            e.untracked
         );
         out.push('}');
     }
@@ -59,13 +60,13 @@ fn write_staged(out: &mut String, data: &ReportData) {
             out.push_str(", ");
         }
         out.push('{');
-        let _ = std::fmt::Write::write_fmt(
+        let _ = write!(
             out,
-            format_args!(
-                "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}",
-                json_escape(&e.repo),
-                e.lines, e.files, e.untracked
-            ),
+            "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}",
+            json_escape(&e.repo),
+            e.lines,
+            e.files,
+            e.untracked
         );
         out.push('}');
     }
@@ -79,16 +80,20 @@ fn write_pushable(out: &mut String, data: &ReportData) {
             out.push_str(", ");
         }
         out.push('{');
-        out.push_str(&format!("\"repo\":\"{}\", ", json_escape(&e.repo)));
-        out.push_str(&format!("\"revs\":{}", e.revs));
+        let _ = write!(out, "\"repo\":\"{}\", ", json_escape(&e.repo));
+        let _ = write!(out, "\"revs\":{}", e.revs);
         out.push_str(", ");
         match e.earliest_secs {
-            Some(v) => out.push_str(&format!("\"earliest_secs\":{}", v)),
+            Some(v) => {
+                let _ = write!(out, "\"earliest_secs\":{v}");
+            }
             None => out.push_str("\"earliest_secs\":null"),
         }
         out.push_str(", ");
         match e.latest_secs {
-            Some(v) => out.push_str(&format!("\"latest_secs\":{}", v)),
+            Some(v) => {
+                let _ = write!(out, "\"latest_secs\":{v}");
+            }
             None => out.push_str("\"latest_secs\":null"),
         }
         out.push('}');

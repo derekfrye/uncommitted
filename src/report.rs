@@ -1,5 +1,4 @@
-#![forbid(unsafe_code)]
-#![deny(warnings, clippy::all, clippy::pedantic)]
+ 
 
 use std::path::PathBuf;
 use std::time::Duration;
@@ -9,23 +8,31 @@ use crate::scan::find_repos;
 use crate::system::{Clock, FsOps};
 use crate::types::{Options, PushableEntry, ReportData, StagedEntry, UncommittedEntry};
 
+const SEC_PER_MIN: u64 = 60;
+const SEC_PER_HOUR: u64 = 60 * 60;
+const SEC_PER_DAY: u64 = 60 * 60 * 24;
+
+#[allow(
+    clippy::cast_precision_loss,
+    clippy::cast_possible_truncation,
+    clippy::cast_possible_wrap,
+    clippy::cast_sign_loss
+)]
 fn humanize_age(dur: Duration) -> String {
     let secs = dur.as_secs();
-    const SEC_PER_MIN: u64 = 60;
-    const SEC_PER_HOUR: u64 = 60 * 60;
-    const SEC_PER_DAY: u64 = 60 * 60 * 24;
     if secs < SEC_PER_HOUR {
-        let mins = secs as f64 / f64::from(SEC_PER_MIN as u32);
+        let mins = secs as f64 / SEC_PER_MIN as f64;
         format!("{mins:.1} min")
     } else if secs < SEC_PER_DAY {
-        let hrs = secs as f64 / f64::from(SEC_PER_HOUR as u32);
+        let hrs = secs as f64 / SEC_PER_HOUR as f64;
         format!("{hrs:.1} hr")
     } else {
-        let days = secs as f64 / f64::from(SEC_PER_DAY as u32);
+        let days = secs as f64 / SEC_PER_DAY as f64;
         format!("{days:.1} days")
     }
 }
 
+#[must_use]
 pub fn humanize_age_public(dur: Duration) -> String {
     humanize_age(dur)
 }
@@ -53,14 +60,14 @@ pub fn collect_report_data(
     }
 
     let mut data = ReportData::default();
-    let mut _no_upstream = Vec::<String>::new();
+    let mut no_upstream = Vec::<String>::new();
 
     for r in repos {
         let name = r
             .file_name()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default();
-        process_repo(&r, &name, opts, git, clock, &mut data, &mut _no_upstream);
+        process_repo(&r, &name, opts, git, clock, &mut data, &mut no_upstream);
     }
     data
 }
@@ -139,12 +146,10 @@ pub fn generate_report(
     for p in &data.pushable {
         let earliest = p
             .earliest_secs
-            .map(|secs| humanize_age(Duration::from_secs(secs)))
-            .unwrap_or_else(|| "n/a".to_string());
+            .map_or_else(|| "n/a".to_string(), |secs| humanize_age(Duration::from_secs(secs)));
         let latest = p
             .latest_secs
-            .map(|secs| humanize_age(Duration::from_secs(secs)))
-            .unwrap_or_else(|| "n/a".to_string());
+            .map_or_else(|| "n/a".to_string(), |secs| humanize_age(Duration::from_secs(secs)));
         let entry = if p.revs > 0 {
             format!(
                 "{} ({} revs, earliest: {earliest} ago, latest: {latest} ago)",

@@ -1,5 +1,4 @@
-#![forbid(unsafe_code)]
-#![deny(warnings, clippy::all, clippy::pedantic)]
+ 
 
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
@@ -17,10 +16,8 @@ impl FsOps for DefaultFsOps {
     fn expand_tilde(&self, p: &Path) -> PathBuf {
         if let Some(home) = std::env::var_os("HOME") {
             let home = PathBuf::from(home);
-            if p.starts_with("~") {
-                if let Ok(rest) = p.strip_prefix("~") {
-                    return home.join(rest);
-                }
+            if p.starts_with("~") && let Ok(rest) = p.strip_prefix("~") {
+                return home.join(rest);
             }
         }
         p.to_path_buf()
@@ -37,4 +34,3 @@ impl Clock for DefaultClock {
         SystemTime::now()
     }
 }
-

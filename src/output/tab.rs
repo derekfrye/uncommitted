@@ -1,5 +1,4 @@
-#![forbid(unsafe_code)]
-#![deny(warnings, clippy::all, clippy::pedantic)]
+ 
 
 use clap::ValueEnum;
 use tabled::{builder::Builder, settings::{object::{Columns, Rows}, Alignment, Style, Modify, style::LineText, Panel}};
@@ -23,11 +22,13 @@ pub enum TabStyle {
     Empty,
 }
 
+#[must_use]
 pub fn format_tab(data: &ReportData, style: TabStyle) -> String {
-    let mut sections = Vec::<String>::new();
-    sections.push(render_uncommitted(data, style));
-    sections.push(render_staged(data, style));
-    sections.push(render_pushable(data, style));
+    let sections = [
+        render_uncommitted(data, style),
+        render_staged(data, style),
+        render_pushable(data, style),
+    ];
     sections.join("\n")
 }
 
@@ -91,12 +92,10 @@ fn render_pushable(data: &ReportData, style: TabStyle) -> String {
     for e in &data.pushable {
         let earliest = e
             .earliest_secs
-            .map(|s| humanize_age_public(std::time::Duration::from_secs(s)))
-            .unwrap_or_else(|| "n/a".to_string());
+            .map_or_else(|| "n/a".to_string(), |s| humanize_age_public(std::time::Duration::from_secs(s)));
         let latest = e
             .latest_secs
-            .map(|s| humanize_age_public(std::time::Duration::from_secs(s)))
-            .unwrap_or_else(|| "n/a".to_string());
+            .map_or_else(|| "n/a".to_string(), |s| humanize_age_public(std::time::Duration::from_secs(s)));
         b.push_record([e.repo.clone(), e.revs.to_string(), earliest, latest]);
     }
     let mut t = b.build();
@@ -125,5 +124,5 @@ fn apply_style(t: &mut tabled::Table, style: TabStyle) {
 }
 
 fn apply_title_line(t: &mut tabled::Table, title: &str) {
-    t.with(LineText::new(format!(" {} ", title), Rows::first()).offset(1));
+    t.with(LineText::new(format!(" {title} "), Rows::first()).offset(1));
 }

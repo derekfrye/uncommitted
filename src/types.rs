@@ -1,5 +1,4 @@
-#![forbid(unsafe_code)]
-#![deny(warnings, clippy::all, clippy::pedantic)]
+ 
 
 #[derive(Debug, Clone)]
 pub struct UncommittedEntry {
@@ -39,4 +38,3 @@ pub struct Options {
     pub no_untracked: bool,
     pub debug: bool,
 }
-

@@ -56,17 +56,17 @@ fn main() {
     match args.output {
         OutputFormat::Print => {
             let report = generate_report(&opts, &fs, &git, &clock);
-            println!("{}", report);
+            println!("{report}");
         }
         OutputFormat::Tab => {
             let data = collect_report_data(&opts, &fs, &git, &clock);
             let out = format_tab(&data, args.tab_style);
-            println!("{}", out);
+            println!("{out}");
         }
         OutputFormat::Json => {
             let data = collect_report_data(&opts, &fs, &git, &clock);
             let out = to_json(&data);
-            println!("{}", out);
+            println!("{out}");
         }
     }
 }

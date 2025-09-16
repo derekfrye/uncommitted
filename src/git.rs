@@ -1,5 +1,4 @@
-#![forbid(unsafe_code)]
-#![deny(warnings, clippy::all, clippy::pedantic)]
+ 
 
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
@@ -8,6 +7,10 @@ use std::time::{Duration, UNIX_EPOCH};
 use crate::system::Clock;
 
 pub trait GitRunner {
+    /// Run the `git` command within the given `repo` with `args`.
+    ///
+    /// # Errors
+    /// Returns an error if the `git` process cannot be spawned or fails during execution.
     fn run_git(&self, repo: &Path, args: &[&str]) -> std::io::Result<Output>;
 }
 
@@ -60,10 +63,10 @@ pub(crate) fn uncommitted_metrics(repo: &Path, include_untracked: bool, git: &dy
         metrics.lines = lines;
         metrics.files = files;
     }
-    if include_untracked {
-        if let Ok(out) = git.run_git(repo, &["ls-files", "--others", "--exclude-standard"]) {
-            metrics.untracked = count_lines(&String::from_utf8_lossy(&out.stdout));
-        }
+    if include_untracked
+        && let Ok(out) = git.run_git(repo, &["ls-files", "--others", "--exclude-standard"]) 
+    {
+        metrics.untracked = count_lines(&String::from_utf8_lossy(&out.stdout));
     }
     metrics
 }
