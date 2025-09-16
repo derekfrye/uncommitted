@@ -3,8 +3,12 @@ name = "uncommitted"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+path = "src/lib.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
+tabled = "0.20.0"
 walkdir = "2"
 
 [dev-dependencies]
