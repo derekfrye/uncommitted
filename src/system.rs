@@ -1,5 +1,3 @@
- 
-
 use std::path::{Path, PathBuf};
 use std::time::SystemTime;
 
@@ -16,7 +14,9 @@ impl FsOps for DefaultFsOps {
     fn expand_tilde(&self, p: &Path) -> PathBuf {
         if let Some(home) = std::env::var_os("HOME") {
             let home = PathBuf::from(home);
-            if p.starts_with("~") && let Ok(rest) = p.strip_prefix("~") {
+            if p.starts_with("~")
+                && let Ok(rest) = p.strip_prefix("~")
+            {
                 return home.join(rest);
             }
         }

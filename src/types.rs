@@ -1,5 +1,3 @@
- 
-
 #[derive(Debug, Clone)]
 pub struct UncommittedEntry {
     pub repo: String,

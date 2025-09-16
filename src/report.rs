@@ -1,9 +1,10 @@
- 
-
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::git::{ahead_of_upstream, has_commits, has_staged, has_uncommitted, push_metrics, staged_metrics, uncommitted_metrics};
+use crate::git::{
+    ahead_of_upstream, has_commits, has_staged, has_uncommitted, push_metrics, staged_metrics,
+    uncommitted_metrics,
+};
 use crate::scan::find_repos;
 use crate::system::{Clock, FsOps};
 use crate::types::{Options, PushableEntry, ReportData, StagedEntry, UncommittedEntry};
@@ -55,7 +56,9 @@ pub fn collect_report_data(
     if opts.debug {
         eprintln!(
             "[debug] roots={:?} depth={} repos_found={}",
-            roots, opts.depth, repos.len()
+            roots,
+            opts.depth,
+            repos.len()
         );
     }
 
@@ -144,12 +147,14 @@ pub fn generate_report(
         ));
     }
     for p in &data.pushable {
-        let earliest = p
-            .earliest_secs
-            .map_or_else(|| "n/a".to_string(), |secs| humanize_age(Duration::from_secs(secs)));
-        let latest = p
-            .latest_secs
-            .map_or_else(|| "n/a".to_string(), |secs| humanize_age(Duration::from_secs(secs)));
+        let earliest = p.earliest_secs.map_or_else(
+            || "n/a".to_string(),
+            |secs| humanize_age(Duration::from_secs(secs)),
+        );
+        let latest = p.latest_secs.map_or_else(
+            || "n/a".to_string(),
+            |secs| humanize_age(Duration::from_secs(secs)),
+        );
         let entry = if p.revs > 0 {
             format!(
                 "{} ({} revs, earliest: {earliest} ago, latest: {latest} ago)",

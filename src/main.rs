@@ -4,8 +4,8 @@
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 use uncommitted::{
-    collect_report_data, generate_report, output::{format_tab, to_json, TabStyle}, DefaultClock,
-    DefaultFsOps, DefaultGitRunner, Options,
+    DefaultClock, DefaultFsOps, DefaultGitRunner, Options, collect_report_data, generate_report,
+    output::{TabStyle, format_tab, to_json},
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]

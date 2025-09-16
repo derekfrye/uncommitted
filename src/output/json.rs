@@ -1,5 +1,3 @@
- 
-
 use crate::ReportData;
 use std::fmt::Write as _;
 

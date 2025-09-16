@@ -1,9 +1,14 @@
- 
-
 use clap::ValueEnum;
-use tabled::{builder::Builder, settings::{object::{Columns, Rows}, Alignment, Style, Modify, style::LineText, Panel}};
+use tabled::{
+    builder::Builder,
+    settings::{
+        Alignment, Modify, Panel, Style,
+        object::{Columns, Rows},
+        style::LineText,
+    },
+};
 
-use crate::{humanize_age_public, ReportData};
+use crate::{ReportData, humanize_age_public};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum TabStyle {
@@ -44,7 +49,12 @@ fn render_uncommitted(data: &ReportData, style: TabStyle) -> String {
     let mut b = Builder::default();
     b.push_record(["Repo", "Lines", "Files", "Untracked"]);
     for e in &data.uncommitted {
-        b.push_record([e.repo.clone(), e.lines.to_string(), e.files.to_string(), e.untracked.to_string()]);
+        b.push_record([
+            e.repo.clone(),
+            e.lines.to_string(),
+            e.files.to_string(),
+            e.untracked.to_string(),
+        ]);
     }
     let mut t = b.build();
     apply_style(&mut t, style);
@@ -67,7 +77,12 @@ fn render_staged(data: &ReportData, style: TabStyle) -> String {
     let mut b = Builder::default();
     b.push_record(["Repo", "Lines", "Files", "Untracked"]);
     for e in &data.staged {
-        b.push_record([e.repo.clone(), e.lines.to_string(), e.files.to_string(), e.untracked.to_string()]);
+        b.push_record([
+            e.repo.clone(),
+            e.lines.to_string(),
+            e.files.to_string(),
+            e.untracked.to_string(),
+        ]);
     }
     let mut t = b.build();
     apply_style(&mut t, style);
@@ -90,12 +105,14 @@ fn render_pushable(data: &ReportData, style: TabStyle) -> String {
     let mut b = Builder::default();
     b.push_record(["Repo", "Revs", "Earliest", "Latest"]);
     for e in &data.pushable {
-        let earliest = e
-            .earliest_secs
-            .map_or_else(|| "n/a".to_string(), |s| humanize_age_public(std::time::Duration::from_secs(s)));
-        let latest = e
-            .latest_secs
-            .map_or_else(|| "n/a".to_string(), |s| humanize_age_public(std::time::Duration::from_secs(s)));
+        let earliest = e.earliest_secs.map_or_else(
+            || "n/a".to_string(),
+            |s| humanize_age_public(std::time::Duration::from_secs(s)),
+        );
+        let latest = e.latest_secs.map_or_else(
+            || "n/a".to_string(),
+            |s| humanize_age_public(std::time::Duration::from_secs(s)),
+        );
         b.push_record([e.repo.clone(), e.revs.to_string(), earliest, latest]);
     }
     let mut t = b.build();

@@ -1,5 +1,3 @@
- 
-
 use std::path::Path;
 use std::process::{Command, Output, Stdio};
 use std::time::{Duration, UNIX_EPOCH};
@@ -55,16 +53,23 @@ fn count_lines(s: &str) -> u64 {
     s.lines().filter(|l| !l.trim().is_empty()).count() as u64
 }
 
-pub(crate) fn uncommitted_metrics(repo: &Path, include_untracked: bool, git: &dyn GitRunner) -> ChangeMetrics {
+pub(crate) fn uncommitted_metrics(
+    repo: &Path,
+    include_untracked: bool,
+    git: &dyn GitRunner,
+) -> ChangeMetrics {
     let mut metrics = ChangeMetrics::default();
-    if let Ok(out) = git.run_git(repo, &["diff", "--numstat", "--ignore-submodules", "--", "."]) {
+    if let Ok(out) = git.run_git(
+        repo,
+        &["diff", "--numstat", "--ignore-submodules", "--", "."],
+    ) {
         let text = String::from_utf8_lossy(&out.stdout);
         let (lines, files) = parse_numstat(&text);
         metrics.lines = lines;
         metrics.files = files;
     }
     if include_untracked
-        && let Ok(out) = git.run_git(repo, &["ls-files", "--others", "--exclude-standard"]) 
+        && let Ok(out) = git.run_git(repo, &["ls-files", "--others", "--exclude-standard"])
     {
         metrics.untracked = count_lines(&String::from_utf8_lossy(&out.stdout));
     }
@@ -73,7 +78,17 @@ pub(crate) fn uncommitted_metrics(repo: &Path, include_untracked: bool, git: &dy
 
 pub(crate) fn staged_metrics(repo: &Path, git: &dyn GitRunner) -> ChangeMetrics {
     let mut metrics = ChangeMetrics::default();
-    if let Ok(out) = git.run_git(repo, &["diff", "--cached", "--numstat", "--ignore-submodules", "--", "."]) {
+    if let Ok(out) = git.run_git(
+        repo,
+        &[
+            "diff",
+            "--cached",
+            "--numstat",
+            "--ignore-submodules",
+            "--",
+            ".",
+        ],
+    ) {
         let text = String::from_utf8_lossy(&out.stdout);
         let (lines, files) = parse_numstat(&text);
         metrics.lines = lines;
@@ -95,7 +110,7 @@ pub(crate) fn has_uncommitted(repo: &Path, include_untracked: bool, git: &dyn Gi
     }
 
     if include_untracked
-        && let Ok(out) = git.run_git(repo, &["ls-files", "--others", "--exclude-standard"]) 
+        && let Ok(out) = git.run_git(repo, &["ls-files", "--others", "--exclude-standard"])
         && !String::from_utf8_lossy(&out.stdout).trim().is_empty()
     {
         return true;
@@ -104,14 +119,27 @@ pub(crate) fn has_uncommitted(repo: &Path, include_untracked: bool, git: &dyn Gi
 }
 
 pub(crate) fn has_staged(repo: &Path, git: &dyn GitRunner) -> bool {
-    if let Ok(out) = git.run_git(repo, &["diff", "--cached", "--quiet", "--ignore-submodules", "--", "."]) {
+    if let Ok(out) = git.run_git(
+        repo,
+        &[
+            "diff",
+            "--cached",
+            "--quiet",
+            "--ignore-submodules",
+            "--",
+            ".",
+        ],
+    ) {
         return !out.status.success();
     }
     false
 }
 
 pub(crate) fn ahead_of_upstream(repo: &Path, git: &dyn GitRunner) -> (bool, bool) {
-    if let Ok(u) = git.run_git(repo, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"]) {
+    if let Ok(u) = git.run_git(
+        repo,
+        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+    ) {
         if !u.status.success() {
             return (false, false);
         }
@@ -121,7 +149,10 @@ pub(crate) fn ahead_of_upstream(repo: &Path, git: &dyn GitRunner) -> (bool, bool
             return (false, false);
         }
         if let Ok(cnt) = git.run_git(repo, &["rev-list", "--count", &format!("{upstream}..HEAD")]) {
-            let n = String::from_utf8_lossy(&cnt.stdout).trim().parse::<u64>().unwrap_or(0);
+            let n = String::from_utf8_lossy(&cnt.stdout)
+                .trim()
+                .parse::<u64>()
+                .unwrap_or(0);
             return (n > 0, true);
         }
     }
@@ -129,7 +160,7 @@ pub(crate) fn ahead_of_upstream(repo: &Path, git: &dyn GitRunner) -> (bool, bool
 }
 
 pub(crate) fn has_commits(repo: &Path, git: &dyn GitRunner) -> bool {
-    git.run_git(repo, &["rev-parse", "--verify", "HEAD"]) 
+    git.run_git(repo, &["rev-parse", "--verify", "HEAD"])
         .map(|o| o.status.success())
         .unwrap_or(false)
 }
@@ -141,19 +172,30 @@ pub(crate) struct PushMetrics {
     pub(crate) latest_age: Option<Duration>,
 }
 
-pub(crate) fn push_metrics(repo: &Path, git: &dyn GitRunner, clock: &dyn Clock) -> Option<PushMetrics> {
+pub(crate) fn push_metrics(
+    repo: &Path,
+    git: &dyn GitRunner,
+    clock: &dyn Clock,
+) -> Option<PushMetrics> {
     let uref = upstream_ref(repo, git)?;
     let ahead = count_ahead(repo, git, &uref)?;
     if ahead == 0 {
         return None;
     }
     let (earliest, latest) = commit_age_bounds(repo, git, clock, &uref)?;
-    Some(PushMetrics { ahead, earliest_age: earliest, latest_age: latest })
+    Some(PushMetrics {
+        ahead,
+        earliest_age: earliest,
+        latest_age: latest,
+    })
 }
 
 fn upstream_ref(repo: &Path, git: &dyn GitRunner) -> Option<String> {
     let upstream = git
-        .run_git(repo, &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"])
+        .run_git(
+            repo,
+            &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        )
         .ok()?;
     if !upstream.status.success() {
         return None;
@@ -163,9 +205,18 @@ fn upstream_ref(repo: &Path, git: &dyn GitRunner) -> Option<String> {
 }
 
 fn count_ahead(repo: &Path, git: &dyn GitRunner, uref: &str) -> Option<u64> {
-    let count = git.run_git(repo, &["rev-list", "--count", &format!("{uref}..HEAD")]).ok()?;
-    if !count.status.success() { return None; }
-    Some(String::from_utf8_lossy(&count.stdout).trim().parse::<u64>().unwrap_or(0))
+    let count = git
+        .run_git(repo, &["rev-list", "--count", &format!("{uref}..HEAD")])
+        .ok()?;
+    if !count.status.success() {
+        return None;
+    }
+    Some(
+        String::from_utf8_lossy(&count.stdout)
+            .trim()
+            .parse::<u64>()
+            .unwrap_or(0),
+    )
 }
 
 fn commit_age_bounds(
@@ -174,8 +225,12 @@ fn commit_age_bounds(
     clock: &dyn Clock,
     uref: &str,
 ) -> Option<(Option<Duration>, Option<Duration>)> {
-    let log = git.run_git(repo, &["log", "--format=%ct", &format!("{uref}..HEAD")]).ok()?;
-    if !log.status.success() { return None; }
+    let log = git
+        .run_git(repo, &["log", "--format=%ct", &format!("{uref}..HEAD")])
+        .ok()?;
+    if !log.status.success() {
+        return None;
+    }
     let now_secs = clock
         .now()
         .duration_since(UNIX_EPOCH)
@@ -186,8 +241,14 @@ fn commit_age_bounds(
     for line in String::from_utf8_lossy(&log.stdout).lines() {
         if let Ok(ts) = line.trim().parse::<u64>() {
             let age = Duration::from_secs(now_secs.saturating_sub(ts));
-            min_age = Some(match min_age { Some(cur) if cur < age => cur, _ => age });
-            max_age = Some(match max_age { Some(cur) if cur > age => cur, _ => age });
+            min_age = Some(match min_age {
+                Some(cur) if cur < age => cur,
+                _ => age,
+            });
+            max_age = Some(match max_age {
+                Some(cur) if cur > age => cur,
+                _ => age,
+            });
         }
     }
     Some((max_age, min_age))

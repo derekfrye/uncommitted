@@ -1,7 +1,5 @@
- 
-
-pub mod tab;
 pub mod json;
+pub mod tab;
 
-pub use tab::{format_tab, TabStyle};
 pub use json::to_json;
+pub use tab::{TabStyle, format_tab};

@@ -1,9 +1,9 @@
 use std::fs;
+use std::os::unix::process::ExitStatusExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tempfile::TempDir;
-use uncommitted::{generate_report, Clock, DefaultFsOps, FsOps, GitRunner, Options};
-use std::os::unix::process::ExitStatusExt as _;
+use uncommitted::{Clock, DefaultFsOps, FsOps, GitRunner, Options, generate_report};
 
 #[test]
 fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
@@ -107,7 +107,7 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
                     }
                     Self::out_ok("")
                 }
-                _ => Self::out_ok("")
+                _ => Self::out_ok(""),
             }
         }
     }
@@ -146,4 +146,3 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(report, expected);
     Ok(())
 }
-

@@ -1,5 +1,3 @@
- 
-
 use std::collections::HashSet;
 use std::path::PathBuf;
 use walkdir::WalkDir;
