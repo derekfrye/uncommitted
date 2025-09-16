@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::git::{
@@ -45,32 +45,65 @@ pub fn collect_report_data(
     clock: &dyn Clock,
 ) -> ReportData {
     let default_root = PathBuf::from("~/src");
-    let roots = if opts.roots.is_empty() {
+    let roots: Vec<PathBuf> = if opts.roots.is_empty() {
         vec![default_root]
     } else {
         opts.roots.clone()
     };
 
-    let repos = find_repos(fs, &roots, opts.depth, opts.debug);
-
-    if opts.debug {
-        eprintln!(
-            "[debug] roots={:?} depth={} repos_found={}",
-            roots,
-            opts.depth,
-            repos.len()
-        );
+    // Build pairs of (display string from CLI input, expanded/absolute-ish path)
+    let mut rooted: Vec<(String, PathBuf)> = Vec::new();
+    for r in &roots {
+        let root_display = r.to_string_lossy().to_string();
+        let expanded = fs.expand_tilde(r);
+        // Convert to an absolute-like path when relative (prefix current_dir),
+        // but do not resolve symlinks.
+        let root_full = if expanded.is_absolute() {
+            expanded
+        } else {
+            match std::env::current_dir() {
+                Ok(cwd) => cwd.join(expanded),
+                Err(_) => expanded,
+            }
+        };
+        rooted.push((root_display, root_full));
     }
 
     let mut data = ReportData::default();
+    data.multi_root = rooted.len() > 1;
     let mut no_upstream = Vec::<String>::new();
 
-    for r in repos {
-        let name = r
-            .file_name()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default();
-        process_repo(&r, &name, opts, git, clock, &mut data, &mut no_upstream);
+    // Scan per-root so we can attribute repos to the correct root
+    for (root_display, root_full) in &rooted {
+        let repos = find_repos(fs, &[root_full.clone()], opts.depth, opts.debug);
+
+        if opts.debug {
+            eprintln!(
+                "[debug] root_display={} root_full={} depth={} repos_found={}",
+                root_display,
+                root_full.display(),
+                opts.depth,
+                repos.len()
+            );
+        }
+
+        for r in repos {
+            let name = r
+                .file_name()
+                .map(|s| s.to_string_lossy().to_string())
+                .unwrap_or_default();
+            process_repo(
+                &r,
+                &name,
+                root_display,
+                root_full,
+                opts,
+                git,
+                clock,
+                &mut data,
+                &mut no_upstream,
+            );
+        }
     }
     data
 }
@@ -78,6 +111,8 @@ pub fn collect_report_data(
 fn process_repo(
     r: &std::path::Path,
     name: &str,
+    root_display: &str,
+    root_full: &Path,
     opts: &Options,
     git: &dyn crate::git::GitRunner,
     clock: &dyn Clock,
@@ -91,6 +126,8 @@ fn process_repo(
             lines: m.lines,
             files: m.files,
             untracked: m.untracked,
+            root_display: root_display.to_string(),
+            root_full: root_full.display().to_string(),
         });
     }
     if has_staged(r, git) {
@@ -100,6 +137,8 @@ fn process_repo(
             lines: m.lines,
             files: m.files,
             untracked: m.untracked,
+            root_display: root_display.to_string(),
+            root_full: root_full.display().to_string(),
         });
     }
     let (is_ahead, has_up) = ahead_of_upstream(r, git);
@@ -110,6 +149,8 @@ fn process_repo(
                 revs: pm.ahead,
                 earliest_secs: pm.earliest_age.map(|d| d.as_secs()),
                 latest_secs: pm.latest_age.map(|d| d.as_secs()),
+                root_display: root_display.to_string(),
+                root_full: root_full.display().to_string(),
             });
         } else {
             data.pushable.push(PushableEntry {
@@ -117,6 +158,8 @@ fn process_repo(
                 revs: 0,
                 earliest_secs: None,
                 latest_secs: None,
+                root_display: root_display.to_string(),
+                root_full: root_full.display().to_string(),
             });
         }
     } else if !has_up && has_commits(r, git) {

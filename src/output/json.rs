@@ -40,11 +40,12 @@ fn write_uncommitted(out: &mut String, data: &ReportData) {
         out.push('{');
         let _ = write!(
             out,
-            "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}",
+            "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}, \"root\":\"{}\"",
             json_escape(&e.repo),
             e.lines,
             e.files,
-            e.untracked
+            e.untracked,
+            json_escape(&e.root_full)
         );
         out.push('}');
     }
@@ -60,11 +61,12 @@ fn write_staged(out: &mut String, data: &ReportData) {
         out.push('{');
         let _ = write!(
             out,
-            "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}",
+            "\"repo\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}, \"root\":\"{}\"",
             json_escape(&e.repo),
             e.lines,
             e.files,
-            e.untracked
+            e.untracked,
+            json_escape(&e.root_full)
         );
         out.push('}');
     }
@@ -94,6 +96,8 @@ fn write_pushable(out: &mut String, data: &ReportData) {
             }
             None => out.push_str("\"latest_secs\":null"),
         }
+        out.push_str(", ");
+        let _ = write!(out, "\"root\":\"{}\"", json_escape(&e.root_full));
         out.push('}');
     }
     out.push(']');

@@ -29,15 +29,16 @@ pub enum TabStyle {
 
 #[must_use]
 pub fn format_tab(data: &ReportData, style: TabStyle) -> String {
+    let show_root = data.multi_root;
     let sections = [
-        render_uncommitted(data, style),
-        render_staged(data, style),
-        render_pushable(data, style),
+        render_uncommitted(data, style, show_root),
+        render_staged(data, style, show_root),
+        render_pushable(data, style, show_root),
     ];
     sections.join("\n")
 }
 
-fn render_uncommitted(data: &ReportData, style: TabStyle) -> String {
+fn render_uncommitted(data: &ReportData, style: TabStyle, show_root: bool) -> String {
     if data.uncommitted.is_empty() {
         let mut b = Builder::default();
         b.push_record(["(none)"]);
@@ -47,25 +48,46 @@ fn render_uncommitted(data: &ReportData, style: TabStyle) -> String {
         return t.to_string();
     }
     let mut b = Builder::default();
-    b.push_record(["Repo", "Lines", "Files", "Untracked"]);
+    if show_root {
+        b.push_record(["Repo", "Root", "Lines", "Files", "Untracked"]);
+    } else {
+        b.push_record(["Repo", "Lines", "Files", "Untracked"]);
+    }
     for e in &data.uncommitted {
-        b.push_record([
-            e.repo.clone(),
-            e.lines.to_string(),
-            e.files.to_string(),
-            e.untracked.to_string(),
-        ]);
+        if show_root {
+            b.push_record([
+                e.repo.clone(),
+                e.root_display.clone(),
+                e.lines.to_string(),
+                e.files.to_string(),
+                e.untracked.to_string(),
+            ]);
+        } else {
+            b.push_record([
+                e.repo.clone(),
+                e.lines.to_string(),
+                e.files.to_string(),
+                e.untracked.to_string(),
+            ]);
+        }
     }
     let mut t = b.build();
     apply_style(&mut t, style);
-    t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
-    t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
-    t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+    if show_root {
+        // Right align numeric columns taking into account the root column
+        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(4..5)).with(Alignment::right()));
+    } else {
+        t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+    }
     apply_title_line(&mut t, "Uncommitted Changes");
     t.to_string()
 }
 
-fn render_staged(data: &ReportData, style: TabStyle) -> String {
+fn render_staged(data: &ReportData, style: TabStyle, show_root: bool) -> String {
     if data.staged.is_empty() {
         let mut b = Builder::default();
         b.push_record(["(none)"]);
@@ -75,25 +97,45 @@ fn render_staged(data: &ReportData, style: TabStyle) -> String {
         return t.to_string();
     }
     let mut b = Builder::default();
-    b.push_record(["Repo", "Lines", "Files", "Untracked"]);
+    if show_root {
+        b.push_record(["Repo", "Root", "Lines", "Files", "Untracked"]);
+    } else {
+        b.push_record(["Repo", "Lines", "Files", "Untracked"]);
+    }
     for e in &data.staged {
-        b.push_record([
-            e.repo.clone(),
-            e.lines.to_string(),
-            e.files.to_string(),
-            e.untracked.to_string(),
-        ]);
+        if show_root {
+            b.push_record([
+                e.repo.clone(),
+                e.root_display.clone(),
+                e.lines.to_string(),
+                e.files.to_string(),
+                e.untracked.to_string(),
+            ]);
+        } else {
+            b.push_record([
+                e.repo.clone(),
+                e.lines.to_string(),
+                e.files.to_string(),
+                e.untracked.to_string(),
+            ]);
+        }
     }
     let mut t = b.build();
     apply_style(&mut t, style);
-    t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
-    t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
-    t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+    if show_root {
+        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(4..5)).with(Alignment::right()));
+    } else {
+        t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+    }
     apply_title_line(&mut t, "Staged Changes");
     t.to_string()
 }
 
-fn render_pushable(data: &ReportData, style: TabStyle) -> String {
+fn render_pushable(data: &ReportData, style: TabStyle, show_root: bool) -> String {
     if data.pushable.is_empty() {
         let mut b = Builder::default();
         b.push_record(["(none)"]);
@@ -103,7 +145,11 @@ fn render_pushable(data: &ReportData, style: TabStyle) -> String {
         return t.to_string();
     }
     let mut b = Builder::default();
-    b.push_record(["Repo", "Revs", "Earliest", "Latest"]);
+    if show_root {
+        b.push_record(["Repo", "Root", "Revs", "Earliest", "Latest"]);
+    } else {
+        b.push_record(["Repo", "Revs", "Earliest", "Latest"]);
+    }
     for e in &data.pushable {
         let earliest = e.earliest_secs.map_or_else(
             || "n/a".to_string(),
@@ -113,11 +159,25 @@ fn render_pushable(data: &ReportData, style: TabStyle) -> String {
             || "n/a".to_string(),
             |s| humanize_age_public(std::time::Duration::from_secs(s)),
         );
-        b.push_record([e.repo.clone(), e.revs.to_string(), earliest, latest]);
+        if show_root {
+            b.push_record([
+                e.repo.clone(),
+                e.root_display.clone(),
+                e.revs.to_string(),
+                earliest,
+                latest,
+            ]);
+        } else {
+            b.push_record([e.repo.clone(), e.revs.to_string(), earliest, latest]);
+        }
     }
     let mut t = b.build();
     apply_style(&mut t, style);
-    t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
+    if show_root {
+        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+    } else {
+        t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
+    }
     apply_title_line(&mut t, "Pushable Commits");
     t.to_string()
 }
