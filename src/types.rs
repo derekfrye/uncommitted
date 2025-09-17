@@ -47,4 +47,5 @@ pub struct Options {
     pub depth: usize,
     pub no_untracked: bool,
     pub debug: bool,
+    pub refresh_remotes: bool,
 }

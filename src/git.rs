@@ -37,6 +37,100 @@ pub(crate) fn current_branch(repo: &Path, git: &dyn GitRunner) -> Option<String>
     if s.is_empty() { None } else { Some(s) }
 }
 
+#[must_use]
+pub(crate) fn list_local_branches_with_upstream(
+    repo: &Path,
+    git: &dyn GitRunner,
+) -> Vec<(String, String)> {
+    let out = git
+        .run_git(
+            repo,
+            &[
+                "for-each-ref",
+                "--format=%(refname:short) %(upstream:short)",
+                "refs/heads",
+            ],
+        )
+        .ok();
+    let mut v = Vec::new();
+    if let Some(out) = out {
+        if out.status.success() {
+            let text = String::from_utf8_lossy(&out.stdout);
+            for line in text.lines() {
+                let mut parts = line.split_whitespace();
+                if let Some(branch) = parts.next() {
+                    if let Some(upstream) = parts.next() {
+                        if !upstream.trim().is_empty() {
+                            v.push((branch.to_string(), upstream.to_string()));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    v
+}
+
+pub(crate) fn fetch_remote(repo: &Path, git: &dyn GitRunner, remote: &str) -> bool {
+    git.run_git(repo, &["fetch", "--prune", "--no-tags", remote])
+        .map(|o| o.status.success())
+        .unwrap_or(false)
+}
+
+pub(crate) fn ahead_count_for_ref_pair(
+    repo: &Path,
+    git: &dyn GitRunner,
+    branch: &str,
+    uref: &str,
+) -> Option<u64> {
+    let count = git
+        .run_git(repo, &["rev-list", "--count", &format!("{uref}..{branch}")])
+        .ok()?;
+    if !count.status.success() {
+        return None;
+    }
+    String::from_utf8_lossy(&count.stdout)
+        .trim()
+        .parse::<u64>()
+        .ok()
+}
+
+pub(crate) fn commit_age_bounds_for_ref_pair(
+    repo: &Path,
+    git: &dyn GitRunner,
+    clock: &dyn Clock,
+    branch: &str,
+    uref: &str,
+) -> Option<(Option<Duration>, Option<Duration>)> {
+    let log = git
+        .run_git(repo, &["log", "--format=%ct", &format!("{uref}..{branch}")])
+        .ok()?;
+    if !log.status.success() {
+        return None;
+    }
+    let now_secs = clock
+        .now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or(Duration::from_secs(0))
+        .as_secs();
+    let mut min_age: Option<Duration> = None;
+    let mut max_age: Option<Duration> = None;
+    for line in String::from_utf8_lossy(&log.stdout).lines() {
+        if let Ok(ts) = line.trim().parse::<u64>() {
+            let age = Duration::from_secs(now_secs.saturating_sub(ts));
+            min_age = Some(match min_age {
+                Some(cur) if cur < age => cur,
+                _ => age,
+            });
+            max_age = Some(match max_age {
+                Some(cur) if cur > age => cur,
+                _ => age,
+            });
+        }
+    }
+    Some((max_age, min_age))
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ChangeMetrics {
     pub(crate) lines: u64,
@@ -147,121 +241,4 @@ pub(crate) fn has_staged(repo: &Path, git: &dyn GitRunner) -> bool {
     false
 }
 
-pub(crate) fn ahead_of_upstream(repo: &Path, git: &dyn GitRunner) -> (bool, bool) {
-    if let Ok(u) = git.run_git(
-        repo,
-        &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-    ) {
-        if !u.status.success() {
-            return (false, false);
-        }
-        let upstream = String::from_utf8_lossy(&u.stdout);
-        let upstream = upstream.trim();
-        if upstream.is_empty() {
-            return (false, false);
-        }
-        if let Ok(cnt) = git.run_git(repo, &["rev-list", "--count", &format!("{upstream}..HEAD")]) {
-            let n = String::from_utf8_lossy(&cnt.stdout)
-                .trim()
-                .parse::<u64>()
-                .unwrap_or(0);
-            return (n > 0, true);
-        }
-    }
-    (false, false)
-}
-
-pub(crate) fn has_commits(repo: &Path, git: &dyn GitRunner) -> bool {
-    git.run_git(repo, &["rev-parse", "--verify", "HEAD"])
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-}
-
-#[derive(Debug, Default, Clone)]
-pub(crate) struct PushMetrics {
-    pub(crate) ahead: u64,
-    pub(crate) earliest_age: Option<Duration>,
-    pub(crate) latest_age: Option<Duration>,
-}
-
-pub(crate) fn push_metrics(
-    repo: &Path,
-    git: &dyn GitRunner,
-    clock: &dyn Clock,
-) -> Option<PushMetrics> {
-    let uref = upstream_ref(repo, git)?;
-    let ahead = count_ahead(repo, git, &uref)?;
-    if ahead == 0 {
-        return None;
-    }
-    let (earliest, latest) = commit_age_bounds(repo, git, clock, &uref)?;
-    Some(PushMetrics {
-        ahead,
-        earliest_age: earliest,
-        latest_age: latest,
-    })
-}
-
-fn upstream_ref(repo: &Path, git: &dyn GitRunner) -> Option<String> {
-    let upstream = git
-        .run_git(
-            repo,
-            &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
-        )
-        .ok()?;
-    if !upstream.status.success() {
-        return None;
-    }
-    let uref = String::from_utf8_lossy(&upstream.stdout).trim().to_string();
-    if uref.is_empty() { None } else { Some(uref) }
-}
-
-fn count_ahead(repo: &Path, git: &dyn GitRunner, uref: &str) -> Option<u64> {
-    let count = git
-        .run_git(repo, &["rev-list", "--count", &format!("{uref}..HEAD")])
-        .ok()?;
-    if !count.status.success() {
-        return None;
-    }
-    Some(
-        String::from_utf8_lossy(&count.stdout)
-            .trim()
-            .parse::<u64>()
-            .unwrap_or(0),
-    )
-}
-
-fn commit_age_bounds(
-    repo: &Path,
-    git: &dyn GitRunner,
-    clock: &dyn Clock,
-    uref: &str,
-) -> Option<(Option<Duration>, Option<Duration>)> {
-    let log = git
-        .run_git(repo, &["log", "--format=%ct", &format!("{uref}..HEAD")])
-        .ok()?;
-    if !log.status.success() {
-        return None;
-    }
-    let now_secs = clock
-        .now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or(Duration::from_secs(0))
-        .as_secs();
-    let mut min_age: Option<Duration> = None;
-    let mut max_age: Option<Duration> = None;
-    for line in String::from_utf8_lossy(&log.stdout).lines() {
-        if let Ok(ts) = line.trim().parse::<u64>() {
-            let age = Duration::from_secs(now_secs.saturating_sub(ts));
-            min_age = Some(match min_age {
-                Some(cur) if cur < age => cur,
-                _ => age,
-            });
-            max_age = Some(match max_age {
-                Some(cur) if cur > age => cur,
-                _ => age,
-            });
-        }
-    }
-    Some((max_age, min_age))
-}
+// Removed legacy HEAD-only ahead-of-upstream helpers in favor of per-branch variants.

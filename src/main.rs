@@ -29,6 +29,10 @@ struct Args {
     #[arg(long)]
     debug: bool,
 
+    /// Refresh remote tracking refs before computing pushables
+    #[arg(long)]
+    refresh_remotes: bool,
+
     /// Output format: tab (default) or json
     #[arg(long, value_enum, default_value_t = OutputFormat::Tab)]
     output: OutputFormat,
@@ -45,6 +49,7 @@ fn main() {
         depth: args.depth,
         no_untracked: args.no_untracked,
         debug: args.debug,
+        refresh_remotes: args.refresh_remotes,
     };
     let fs = DefaultFsOps;
     let git = DefaultGitRunner;

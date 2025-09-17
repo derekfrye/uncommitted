@@ -157,7 +157,13 @@ fn render_pushable(data: &ReportData, style: TabStyle, show_root: bool) -> Strin
     } else {
         b.push_record(["Repo", "Branch", "Revs", "Earliest", "Latest"]);
     }
-    for e in &data.pushable {
+    let mut rows = data.pushable.clone();
+    rows.sort_by(|a, b| {
+        let ra = if show_root { &a.root_display } else { "" };
+        let rb = if show_root { &b.root_display } else { "" };
+        (ra, &a.repo, &a.branch).cmp(&(rb, &b.repo, &b.branch))
+    });
+    for e in &rows {
         let earliest = e.earliest_secs.map_or_else(
             || "n/a".to_string(),
             |s| humanize_age_public(std::time::Duration::from_secs(s)),

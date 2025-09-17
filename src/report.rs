@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::git::{
-    ahead_of_upstream, current_branch, has_commits, has_staged, has_uncommitted, push_metrics,
+    current_branch, fetch_remote, has_staged, has_uncommitted, list_local_branches_with_upstream,
     staged_metrics, uncommitted_metrics,
 };
 use crate::scan::find_repos;
@@ -71,7 +71,6 @@ pub fn collect_report_data(
 
     let mut data = ReportData::default();
     data.multi_root = rooted.len() > 1;
-    let mut no_upstream = Vec::<String>::new();
 
     // Scan per-root so we can attribute repos to the correct root
     for (root_display, root_full) in &rooted {
@@ -101,7 +100,6 @@ pub fn collect_report_data(
                 git,
                 clock,
                 &mut data,
-                &mut no_upstream,
             );
         }
     }
@@ -117,7 +115,6 @@ fn process_repo(
     git: &dyn crate::git::GitRunner,
     clock: &dyn Clock,
     data: &mut ReportData,
-    no_upstream: &mut Vec<String>,
 ) {
     let branch = current_branch(r, git).unwrap_or_else(|| "HEAD".to_string());
     if has_uncommitted(r, !opts.no_untracked, git) {
@@ -144,31 +141,39 @@ fn process_repo(
             root_full: root_full.display().to_string(),
         });
     }
-    let (is_ahead, has_up) = ahead_of_upstream(r, git);
-    if is_ahead {
-        if let Some(pm) = push_metrics(r, git, clock) {
-            data.pushable.push(PushableEntry {
-                repo: name.to_string(),
-                branch: branch.clone(),
-                revs: pm.ahead,
-                earliest_secs: pm.earliest_age.map(|d| d.as_secs()),
-                latest_secs: pm.latest_age.map(|d| d.as_secs()),
-                root_display: root_display.to_string(),
-                root_full: root_full.display().to_string(),
-            });
-        } else {
-            data.pushable.push(PushableEntry {
-                repo: name.to_string(),
-                branch: branch.clone(),
-                revs: 0,
-                earliest_secs: None,
-                latest_secs: None,
-                root_display: root_display.to_string(),
-                root_full: root_full.display().to_string(),
-            });
+    // Enumerate branches with upstreams and add pushable rows where ahead > 0
+    let branches = list_local_branches_with_upstream(r, git);
+    if !branches.is_empty() {
+        if opts.refresh_remotes {
+            let mut remotes = std::collections::HashSet::<String>::new();
+            for (_, upstream) in &branches {
+                if let Some((remote, _rest)) = upstream.split_once('/') {
+                    remotes.insert(remote.to_string());
+                }
+            }
+            for remote in remotes {
+                let _ = fetch_remote(r, git, &remote);
+            }
         }
-    } else if !has_up && has_commits(r, git) {
-        no_upstream.push(name.to_string());
+        for (br, upstream) in branches {
+            if let Some(ahead) = super::git::ahead_count_for_ref_pair(r, git, &br, &upstream) {
+                if ahead > 0 {
+                    let (earliest, latest) = super::git::commit_age_bounds_for_ref_pair(
+                        r, git, clock, &br, &upstream,
+                    )
+                    .unwrap_or((None, None));
+                    data.pushable.push(PushableEntry {
+                        repo: name.to_string(),
+                        branch: br.clone(),
+                        revs: ahead,
+                        earliest_secs: earliest.map(|d| d.as_secs()),
+                        latest_secs: latest.map(|d| d.as_secs()),
+                        root_display: root_display.to_string(),
+                        root_full: root_full.display().to_string(),
+                    });
+                }
+            }
+        }
     }
 }
 

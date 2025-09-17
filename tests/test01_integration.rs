@@ -40,6 +40,17 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         fn run_git(&self, repo: &Path, args: &[&str]) -> std::io::Result<std::process::Output> {
             let reponame = repo.file_name().unwrap().to_string_lossy();
             match args.first().copied().unwrap_or("") {
+                "for-each-ref" => {
+                    // Enumerate local branches and their upstreams
+                    if reponame == "c" {
+                        return Self::out_ok("main origin/main\n");
+                    }
+                    // repos a and b have no upstreams
+                    return Self::out_ok("main\n");
+                }
+                "fetch" => {
+                    return Self::out_ok("");
+                }
                 "rev-parse" if args.len() == 3 && args[1] == "--abbrev-ref" && args[2] == "HEAD" => {
                     // Return a branch name for all repos
                     return Self::out_ok("main\n");
@@ -142,6 +153,7 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         depth: 1,
         no_untracked: false,
         debug: false,
+        refresh_remotes: false,
     };
     let data = collect_report_data(&opts, &MockFs, &MockGit, &MockClock);
     let report = format_tab(&data, TabStyle::Ascii);
