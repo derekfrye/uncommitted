@@ -3,7 +3,10 @@ use std::os::unix::process::ExitStatusExt as _;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tempfile::TempDir;
-use uncommitted::{Clock, DefaultFsOps, FsOps, GitRunner, Options, generate_report};
+use uncommitted::{
+    Clock, DefaultFsOps, FsOps, GitRunner, Options, collect_report_data,
+    output::{format_tab, TabStyle},
+};
 
 #[test]
 fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
@@ -136,12 +139,25 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         no_untracked: false,
         debug: false,
     };
-    let report = generate_report(&opts, &MockFs, &MockGit, &MockClock);
+    let data = collect_report_data(&opts, &MockFs, &MockGit, &MockClock);
+    let report = format_tab(&data, TabStyle::Ascii);
 
     let expected = concat!(
-        "uncommitted: a (75 lines, 3 files, 1 untracked)\n",
-        "staged: b (80 lines, 2 files, 0 untracked)\n",
-        "pushable: c (7 revs, earliest: 1.4 days ago, latest: 1.1 hr ago)"
+        "+ Uncommitted Changes -+-----------+\n",
+        "| Repo | Lines | Files | Untracked |\n",
+        "+------+-------+-------+-----------+\n",
+        "| a    |    75 |     3 |         1 |\n",
+        "+------+-------+-------+-----------+\n",
+        "+ Staged Changes ------+-----------+\n",
+        "| Repo | Lines | Files | Untracked |\n",
+        "+------+-------+-------+-----------+\n",
+        "| b    |    80 |     2 |         0 |\n",
+        "+------+-------+-------+-----------+\n",
+        "+ Pushable Commits ------+--------+\n",
+        "| Repo | Revs | Earliest | Latest |\n",
+        "+------+------+----------+--------+\n",
+        "| c    |    7 | 1.4 days | 1.1 hr |\n",
+        "+------+------+----------+--------+"
     );
     assert_eq!(report, expected);
     Ok(())

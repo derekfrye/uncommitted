@@ -4,16 +4,12 @@
 use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 use uncommitted::{
-    DefaultClock, DefaultFsOps, DefaultGitRunner, Options, collect_report_data, generate_report,
+    DefaultClock, DefaultFsOps, DefaultGitRunner, Options, collect_report_data,
     output::{TabStyle, format_tab, to_json},
 };
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
-enum OutputFormat {
-    Print,
-    Tab,
-    Json,
-}
+enum OutputFormat { Tab, Json }
 
 #[derive(Parser, Debug)]
 #[command(version, about = "Report git repo states under roots.")]
@@ -33,8 +29,8 @@ struct Args {
     #[arg(long)]
     debug: bool,
 
-    /// Output format: print (default), tab, or json
-    #[arg(long, value_enum, default_value_t = OutputFormat::Print)]
+    /// Output format: tab (default) or json
+    #[arg(long, value_enum, default_value_t = OutputFormat::Tab)]
     output: OutputFormat,
 
     /// Table style to use with --output tab
@@ -54,10 +50,6 @@ fn main() {
     let git = DefaultGitRunner;
     let clock = DefaultClock;
     match args.output {
-        OutputFormat::Print => {
-            let report = generate_report(&opts, &fs, &git, &clock);
-            println!("{report}");
-        }
         OutputFormat::Tab => {
             let data = collect_report_data(&opts, &fs, &git, &clock);
             let out = format_tab(&data, args.tab_style);
