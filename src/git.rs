@@ -25,6 +25,18 @@ impl GitRunner for DefaultGitRunner {
     }
 }
 
+#[must_use]
+pub(crate) fn current_branch(repo: &Path, git: &dyn GitRunner) -> Option<String> {
+    let out = git
+        .run_git(repo, &["rev-parse", "--abbrev-ref", "HEAD"])
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if s.is_empty() { None } else { Some(s) }
+}
+
 #[derive(Debug, Default, Clone, Copy)]
 pub(crate) struct ChangeMetrics {
     pub(crate) lines: u64,

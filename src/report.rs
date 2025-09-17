@@ -2,8 +2,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use crate::git::{
-    ahead_of_upstream, has_commits, has_staged, has_uncommitted, push_metrics, staged_metrics,
-    uncommitted_metrics,
+    ahead_of_upstream, current_branch, has_commits, has_staged, has_uncommitted, push_metrics,
+    staged_metrics, uncommitted_metrics,
 };
 use crate::scan::find_repos;
 use crate::system::{Clock, FsOps};
@@ -119,10 +119,12 @@ fn process_repo(
     data: &mut ReportData,
     no_upstream: &mut Vec<String>,
 ) {
+    let branch = current_branch(r, git).unwrap_or_else(|| "HEAD".to_string());
     if has_uncommitted(r, !opts.no_untracked, git) {
         let m = uncommitted_metrics(r, !opts.no_untracked, git);
         data.uncommitted.push(UncommittedEntry {
             repo: name.to_string(),
+            branch: branch.clone(),
             lines: m.lines,
             files: m.files,
             untracked: m.untracked,
@@ -134,6 +136,7 @@ fn process_repo(
         let m = staged_metrics(r, git);
         data.staged.push(StagedEntry {
             repo: name.to_string(),
+            branch: branch.clone(),
             lines: m.lines,
             files: m.files,
             untracked: m.untracked,
@@ -146,6 +149,7 @@ fn process_repo(
         if let Some(pm) = push_metrics(r, git, clock) {
             data.pushable.push(PushableEntry {
                 repo: name.to_string(),
+                branch: branch.clone(),
                 revs: pm.ahead,
                 earliest_secs: pm.earliest_age.map(|d| d.as_secs()),
                 latest_secs: pm.latest_age.map(|d| d.as_secs()),
@@ -155,6 +159,7 @@ fn process_repo(
         } else {
             data.pushable.push(PushableEntry {
                 repo: name.to_string(),
+                branch: branch.clone(),
                 revs: 0,
                 earliest_secs: None,
                 latest_secs: None,

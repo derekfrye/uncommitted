@@ -40,6 +40,10 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         fn run_git(&self, repo: &Path, args: &[&str]) -> std::io::Result<std::process::Output> {
             let reponame = repo.file_name().unwrap().to_string_lossy();
             match args.first().copied().unwrap_or("") {
+                "rev-parse" if args.len() == 3 && args[1] == "--abbrev-ref" && args[2] == "HEAD" => {
+                    // Return a branch name for all repos
+                    return Self::out_ok("main\n");
+                }
                 "diff" => {
                     let rest = &args[1..];
                     let has_cached = rest.iter().any(|a| *a == "--cached");
@@ -143,21 +147,21 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
     let report = format_tab(&data, TabStyle::Ascii);
 
     let expected = concat!(
-        "+ Uncommitted Changes -+-----------+\n",
-        "| Repo | Lines | Files | Untracked |\n",
-        "+------+-------+-------+-----------+\n",
-        "| a    |    75 |     3 |         1 |\n",
-        "+------+-------+-------+-----------+\n",
-        "+ Staged Changes ------+-----------+\n",
-        "| Repo | Lines | Files | Untracked |\n",
-        "+------+-------+-------+-----------+\n",
-        "| b    |    80 |     2 |         0 |\n",
-        "+------+-------+-------+-----------+\n",
-        "+ Pushable Commits ------+--------+\n",
-        "| Repo | Revs | Earliest | Latest |\n",
-        "+------+------+----------+--------+\n",
-        "| c    |    7 | 1.4 days | 1.1 hr |\n",
-        "+------+------+----------+--------+"
+        "+ Uncommitted Changes --+-------+-----------+\n",
+        "| Repo | Branch | Lines | Files | Untracked |\n",
+        "+------+--------+-------+-------+-----------+\n",
+        "| a    | main   |    75 |     3 |         1 |\n",
+        "+------+--------+-------+-------+-----------+\n",
+        "+ Staged Changes -------+-------+-----------+\n",
+        "| Repo | Branch | Lines | Files | Untracked |\n",
+        "+------+--------+-------+-------+-----------+\n",
+        "| b    | main   |    80 |     2 |         0 |\n",
+        "+------+--------+-------+-------+-----------+\n",
+        "+ Pushable Commits ----+----------+--------+\n",
+        "| Repo | Branch | Revs | Earliest | Latest |\n",
+        "+------+--------+------+----------+--------+\n",
+        "| c    | main   |    7 | 1.4 days | 1.1 hr |\n",
+        "+------+--------+------+----------+--------+"
     );
     assert_eq!(report, expected);
     Ok(())

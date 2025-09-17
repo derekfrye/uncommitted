@@ -1,6 +1,7 @@
 #[derive(Debug, Clone)]
 pub struct UncommittedEntry {
     pub repo: String,
+    pub branch: String,
     pub lines: u64,
     pub files: u64,
     pub untracked: u64,
@@ -13,6 +14,7 @@ pub struct UncommittedEntry {
 #[derive(Debug, Clone)]
 pub struct StagedEntry {
     pub repo: String,
+    pub branch: String,
     pub lines: u64,
     pub files: u64,
     pub untracked: u64,
@@ -23,6 +25,7 @@ pub struct StagedEntry {
 #[derive(Debug, Clone)]
 pub struct PushableEntry {
     pub repo: String,
+    pub branch: String,
     pub revs: u64,
     pub earliest_secs: Option<u64>,
     pub latest_secs: Option<u64>,

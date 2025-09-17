@@ -49,15 +49,16 @@ fn render_uncommitted(data: &ReportData, style: TabStyle, show_root: bool) -> St
     }
     let mut b = Builder::default();
     if show_root {
-        b.push_record(["Repo", "Root", "Lines", "Files", "Untracked"]);
+        b.push_record(["Root", "Repo", "Branch", "Lines", "Files", "Untracked"]);
     } else {
-        b.push_record(["Repo", "Lines", "Files", "Untracked"]);
+        b.push_record(["Repo", "Branch", "Lines", "Files", "Untracked"]);
     }
     for e in &data.uncommitted {
         if show_root {
             b.push_record([
-                e.repo.clone(),
                 e.root_display.clone(),
+                e.repo.clone(),
+                e.branch.clone(),
                 e.lines.to_string(),
                 e.files.to_string(),
                 e.untracked.to_string(),
@@ -65,6 +66,7 @@ fn render_uncommitted(data: &ReportData, style: TabStyle, show_root: bool) -> St
         } else {
             b.push_record([
                 e.repo.clone(),
+                e.branch.clone(),
                 e.lines.to_string(),
                 e.files.to_string(),
                 e.untracked.to_string(),
@@ -74,14 +76,15 @@ fn render_uncommitted(data: &ReportData, style: TabStyle, show_root: bool) -> St
     let mut t = b.build();
     apply_style(&mut t, style);
     if show_root {
-        // Right align numeric columns taking into account the root column
+        // Columns: 0 Root, 1 Repo, 2 Branch, 3 Lines, 4 Files, 5 Untracked
+        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(4..5)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(5..6)).with(Alignment::right()));
+    } else {
+        // Columns: 0 Repo, 1 Branch, 2 Lines, 3 Files, 4 Untracked
         t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
         t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
         t.with(Modify::new(Columns::new(4..5)).with(Alignment::right()));
-    } else {
-        t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
-        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
-        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
     }
     apply_title_line(&mut t, "Uncommitted Changes");
     t.to_string()
@@ -98,15 +101,16 @@ fn render_staged(data: &ReportData, style: TabStyle, show_root: bool) -> String 
     }
     let mut b = Builder::default();
     if show_root {
-        b.push_record(["Repo", "Root", "Lines", "Files", "Untracked"]);
+        b.push_record(["Root", "Repo", "Branch", "Lines", "Files", "Untracked"]);
     } else {
-        b.push_record(["Repo", "Lines", "Files", "Untracked"]);
+        b.push_record(["Repo", "Branch", "Lines", "Files", "Untracked"]);
     }
     for e in &data.staged {
         if show_root {
             b.push_record([
-                e.repo.clone(),
                 e.root_display.clone(),
+                e.repo.clone(),
+                e.branch.clone(),
                 e.lines.to_string(),
                 e.files.to_string(),
                 e.untracked.to_string(),
@@ -114,6 +118,7 @@ fn render_staged(data: &ReportData, style: TabStyle, show_root: bool) -> String 
         } else {
             b.push_record([
                 e.repo.clone(),
+                e.branch.clone(),
                 e.lines.to_string(),
                 e.files.to_string(),
                 e.untracked.to_string(),
@@ -123,13 +128,15 @@ fn render_staged(data: &ReportData, style: TabStyle, show_root: bool) -> String 
     let mut t = b.build();
     apply_style(&mut t, style);
     if show_root {
+        // Columns: 0 Root, 1 Repo, 2 Branch, 3 Lines, 4 Files, 5 Untracked
+        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(4..5)).with(Alignment::right()));
+        t.with(Modify::new(Columns::new(5..6)).with(Alignment::right()));
+    } else {
+        // Columns: 0 Repo, 1 Branch, 2 Lines, 3 Files, 4 Untracked
         t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
         t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
         t.with(Modify::new(Columns::new(4..5)).with(Alignment::right()));
-    } else {
-        t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
-        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
-        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
     }
     apply_title_line(&mut t, "Staged Changes");
     t.to_string()
@@ -146,9 +153,9 @@ fn render_pushable(data: &ReportData, style: TabStyle, show_root: bool) -> Strin
     }
     let mut b = Builder::default();
     if show_root {
-        b.push_record(["Repo", "Root", "Revs", "Earliest", "Latest"]);
+        b.push_record(["Root", "Repo", "Branch", "Revs", "Earliest", "Latest"]);
     } else {
-        b.push_record(["Repo", "Revs", "Earliest", "Latest"]);
+        b.push_record(["Repo", "Branch", "Revs", "Earliest", "Latest"]);
     }
     for e in &data.pushable {
         let earliest = e.earliest_secs.map_or_else(
@@ -161,22 +168,31 @@ fn render_pushable(data: &ReportData, style: TabStyle, show_root: bool) -> Strin
         );
         if show_root {
             b.push_record([
-                e.repo.clone(),
                 e.root_display.clone(),
+                e.repo.clone(),
+                e.branch.clone(),
                 e.revs.to_string(),
                 earliest,
                 latest,
             ]);
         } else {
-            b.push_record([e.repo.clone(), e.revs.to_string(), earliest, latest]);
+            b.push_record([
+                e.repo.clone(),
+                e.branch.clone(),
+                e.revs.to_string(),
+                earliest,
+                latest,
+            ]);
         }
     }
     let mut t = b.build();
     apply_style(&mut t, style);
     if show_root {
-        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+        // Columns: 0 Root, 1 Repo, 2 Branch, 3 Revs, 4 Earliest, 5 Latest
+        t.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
     } else {
-        t.with(Modify::new(Columns::new(1..2)).with(Alignment::right()));
+        // Columns: 0 Repo, 1 Branch, 2 Revs, 3 Earliest, 4 Latest
+        t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
     }
     apply_title_line(&mut t, "Pushable Commits");
     t.to_string()
