@@ -13,6 +13,12 @@ const SEC_PER_MIN: u64 = 60;
 const SEC_PER_HOUR: u64 = 60 * 60;
 const SEC_PER_DAY: u64 = 60 * 60 * 24;
 
+#[derive(Copy, Clone)]
+struct RootContext<'a> {
+    display: &'a str,
+    full: &'a Path,
+}
+
 #[allow(
     clippy::cast_precision_loss,
     clippy::cast_possible_truncation,
@@ -69,12 +75,14 @@ pub fn collect_report_data(
         rooted.push((root_display, root_full));
     }
 
-    let mut data = ReportData::default();
-    data.multi_root = rooted.len() > 1;
+    let mut data = ReportData {
+        multi_root: rooted.len() > 1,
+        ..ReportData::default()
+    };
 
     // Scan per-root so we can attribute repos to the correct root
     for (root_display, root_full) in &rooted {
-        let repos = find_repos(fs, &[root_full.clone()], opts.depth, opts.debug);
+        let repos = find_repos(fs, std::slice::from_ref(root_full), opts.depth, opts.debug);
 
         if opts.debug {
             eprintln!(
@@ -94,8 +102,10 @@ pub fn collect_report_data(
             process_repo(
                 &r,
                 &name,
-                root_display,
-                root_full,
+                RootContext {
+                    display: root_display,
+                    full: root_full,
+                },
                 opts,
                 git,
                 clock,
@@ -109,8 +119,7 @@ pub fn collect_report_data(
 fn process_repo(
     r: &std::path::Path,
     name: &str,
-    root_display: &str,
-    root_full: &Path,
+    root: RootContext<'_>,
     opts: &Options,
     git: &dyn crate::git::GitRunner,
     clock: &dyn Clock,
@@ -125,8 +134,8 @@ fn process_repo(
             lines: m.lines,
             files: m.files,
             untracked: m.untracked,
-            root_display: root_display.to_string(),
-            root_full: root_full.display().to_string(),
+            root_display: root.display.to_string(),
+            root_full: root.full.display().to_string(),
         });
     }
     if has_staged(r, git) {
@@ -137,8 +146,8 @@ fn process_repo(
             lines: m.lines,
             files: m.files,
             untracked: m.untracked,
-            root_display: root_display.to_string(),
-            root_full: root_full.display().to_string(),
+            root_display: root.display.to_string(),
+            root_full: root.full.display().to_string(),
         });
     }
     // Enumerate branches with upstreams and add pushable rows where ahead > 0
@@ -156,22 +165,21 @@ fn process_repo(
             }
         }
         for (br, upstream) in branches {
-            if let Some(ahead) = super::git::ahead_count_for_ref_pair(r, git, &br, &upstream) {
-                if ahead > 0 {
-                    let (earliest, latest) = super::git::commit_age_bounds_for_ref_pair(
-                        r, git, clock, &br, &upstream,
-                    )
-                    .unwrap_or((None, None));
-                    data.pushable.push(PushableEntry {
-                        repo: name.to_string(),
-                        branch: br.clone(),
-                        revs: ahead,
-                        earliest_secs: earliest.map(|d| d.as_secs()),
-                        latest_secs: latest.map(|d| d.as_secs()),
-                        root_display: root_display.to_string(),
-                        root_full: root_full.display().to_string(),
-                    });
-                }
+            if let Some(ahead) = super::git::ahead_count_for_ref_pair(r, git, &br, &upstream)
+                && ahead > 0
+            {
+                let (earliest, latest) =
+                    super::git::commit_age_bounds_for_ref_pair(r, git, clock, &br, &upstream)
+                        .unwrap_or((None, None));
+                data.pushable.push(PushableEntry {
+                    repo: name.to_string(),
+                    branch: br.clone(),
+                    revs: ahead,
+                    earliest_secs: earliest.map(|d| d.as_secs()),
+                    latest_secs: latest.map(|d| d.as_secs()),
+                    root_display: root.display.to_string(),
+                    root_full: root.full.display().to_string(),
+                });
             }
         }
     }
@@ -219,10 +227,28 @@ pub fn generate_report(
         ahead.push(entry);
     }
     let join = |v: Vec<String>| v.join(", ");
-    format!(
-        "uncommitted: {}\nstaged: {}\npushable: {}",
-        join(uncommitted),
-        join(staged),
-        join(ahead)
-    )
+    let mut sections = vec![
+        format!("uncommitted: {}", join(uncommitted)),
+        format!("staged: {}", join(staged)),
+        format!("pushable: {}", join(ahead)),
+    ];
+    if let Some(entries) = &data.git_rewrite {
+        let mut rewrite = Vec::new();
+        for entry in entries {
+            let earliest = entry.earliest_secs.map_or_else(
+                || "n/a".to_string(),
+                |secs| humanize_age(Duration::from_secs(secs)),
+            );
+            let latest = entry.latest_secs.map_or_else(
+                || "n/a".to_string(),
+                |secs| humanize_age(Duration::from_secs(secs)),
+            );
+            rewrite.push(format!(
+                "{}->{} (commits: {}, earliest: {earliest} ago, latest: {latest} ago)",
+                entry.source_repo, entry.target_repo, entry.commits
+            ));
+        }
+        sections.push(format!("git_rewrite: {}", join(rewrite)));
+    }
+    sections.join("\n")
 }

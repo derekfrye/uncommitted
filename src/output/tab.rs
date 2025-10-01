@@ -30,11 +30,13 @@ pub enum TabStyle {
 #[must_use]
 pub fn format_tab(data: &ReportData, style: TabStyle) -> String {
     let show_root = data.multi_root;
-    let sections = [
-        render_uncommitted(data, style, show_root),
-        render_staged(data, style, show_root),
-        render_pushable(data, style, show_root),
-    ];
+    let mut sections = Vec::with_capacity(4);
+    sections.push(render_uncommitted(data, style, show_root));
+    sections.push(render_staged(data, style, show_root));
+    sections.push(render_pushable(data, style, show_root));
+    if data.git_rewrite.is_some() {
+        sections.push(render_git_rewrite(data, style));
+    }
     sections.join("\n")
 }
 
@@ -201,6 +203,49 @@ fn render_pushable(data: &ReportData, style: TabStyle, show_root: bool) -> Strin
         t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
     }
     apply_title_line(&mut t, "Pushable Commits");
+    t.to_string()
+}
+
+fn render_git_rewrite(data: &ReportData, style: TabStyle) -> String {
+    let entries = data
+        .git_rewrite
+        .as_ref()
+        .expect("git rewrite table requested without data");
+    if entries.is_empty() {
+        let mut b = Builder::default();
+        b.push_record(["(none)"]);
+        let mut t = b.build();
+        apply_style(&mut t, style);
+        t.with(Panel::header(" Git Rewrite "));
+        return t.to_string();
+    }
+
+    let mut rows = entries.clone();
+    rows.sort_by(|a, b| (&a.source_repo, &a.target_repo).cmp(&(&b.source_repo, &b.target_repo)));
+
+    let mut b = Builder::default();
+    b.push_record(["Source", "Target", "Commits", "Earliest", "Latest"]);
+    for entry in &rows {
+        let earliest = entry.earliest_secs.map_or_else(
+            || "n/a".to_string(),
+            |secs| humanize_age_public(std::time::Duration::from_secs(secs)),
+        );
+        let latest = entry.latest_secs.map_or_else(
+            || "n/a".to_string(),
+            |secs| humanize_age_public(std::time::Duration::from_secs(secs)),
+        );
+        b.push_record([
+            entry.source_repo.clone(),
+            entry.target_repo.clone(),
+            entry.commits.to_string(),
+            earliest,
+            latest,
+        ]);
+    }
+    let mut t = b.build();
+    apply_style(&mut t, style);
+    t.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+    apply_title_line(&mut t, "Git Rewrite");
     t.to_string()
 }
 

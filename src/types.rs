@@ -33,11 +33,25 @@ pub struct PushableEntry {
     pub root_full: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct GitRewriteEntry {
+    pub source_repo: String,
+    pub source_branch: String,
+    pub source_path: String,
+    pub target_repo: String,
+    pub target_branch: String,
+    pub target_path: String,
+    pub commits: u64,
+    pub earliest_secs: Option<u64>,
+    pub latest_secs: Option<u64>,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ReportData {
     pub uncommitted: Vec<UncommittedEntry>,
     pub staged: Vec<StagedEntry>,
     pub pushable: Vec<PushableEntry>,
+    pub git_rewrite: Option<Vec<GitRewriteEntry>>,
     pub multi_root: bool,
 }
 
@@ -48,4 +62,6 @@ pub struct Options {
     pub no_untracked: bool,
     pub debug: bool,
     pub refresh_remotes: bool,
+    pub git_rewrite_toml: Option<std::path::PathBuf>,
+    pub git_rewrite_path: Option<std::path::PathBuf>,
 }

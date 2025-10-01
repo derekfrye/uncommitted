@@ -5,7 +5,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tempfile::TempDir;
 use uncommitted::{
     Clock, DefaultFsOps, FsOps, GitRunner, Options, collect_report_data,
-    output::{format_tab, TabStyle},
+    output::{TabStyle, format_tab},
 };
 
 #[test]
@@ -51,7 +51,9 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
                 "fetch" => {
                     return Self::out_ok("");
                 }
-                "rev-parse" if args.len() == 3 && args[1] == "--abbrev-ref" && args[2] == "HEAD" => {
+                "rev-parse"
+                    if args.len() == 3 && args[1] == "--abbrev-ref" && args[2] == "HEAD" =>
+                {
                     // Return a branch name for all repos
                     return Self::out_ok("main\n");
                 }
@@ -154,6 +156,8 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         no_untracked: false,
         debug: false,
         refresh_remotes: false,
+        git_rewrite_toml: None,
+        git_rewrite_path: None,
     };
     let data = collect_report_data(&opts, &MockFs, &MockGit, &MockClock);
     let report = format_tab(&data, TabStyle::Ascii);

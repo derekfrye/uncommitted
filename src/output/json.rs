@@ -27,6 +27,7 @@ pub fn to_json(data: &ReportData) -> String {
     write_uncommitted(&mut out, data);
     write_staged(&mut out, data);
     write_pushable(&mut out, data);
+    write_git_rewrite(&mut out, data);
     out.push('}');
     out
 }
@@ -104,4 +105,51 @@ fn write_pushable(out: &mut String, data: &ReportData) {
         out.push('}');
     }
     out.push(']');
+}
+
+fn write_git_rewrite(out: &mut String, data: &ReportData) {
+    out.push_str(", \"git_rewrite\": ");
+    match data.git_rewrite.as_ref() {
+        None => out.push_str("null"),
+        Some(entries) => {
+            out.push('[');
+            for (i, entry) in entries.iter().enumerate() {
+                if i > 0 {
+                    out.push_str(", ");
+                }
+                out.push('{');
+                let _ = write!(
+                    out,
+                    "\"source_repo\":\"{}\", \"source_branch\":\"{}\", \"source_path\":\"{}\", ",
+                    json_escape(&entry.source_repo),
+                    json_escape(&entry.source_branch),
+                    json_escape(&entry.source_path)
+                );
+                let _ = write!(
+                    out,
+                    "\"target_repo\":\"{}\", \"target_branch\":\"{}\", \"target_path\":\"{}\", ",
+                    json_escape(&entry.target_repo),
+                    json_escape(&entry.target_branch),
+                    json_escape(&entry.target_path)
+                );
+                let _ = write!(out, "\"commits\":{}", entry.commits);
+                out.push_str(", ");
+                match entry.earliest_secs {
+                    Some(v) => {
+                        let _ = write!(out, "\"earliest_secs\":{v}");
+                    }
+                    None => out.push_str("\"earliest_secs\":null"),
+                }
+                out.push_str(", ");
+                match entry.latest_secs {
+                    Some(v) => {
+                        let _ = write!(out, "\"latest_secs\":{v}");
+                    }
+                    None => out.push_str("\"latest_secs\":null"),
+                }
+                out.push('}');
+            }
+            out.push(']');
+        }
+    }
 }

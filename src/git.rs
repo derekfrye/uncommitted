@@ -53,18 +53,17 @@ pub(crate) fn list_local_branches_with_upstream(
         )
         .ok();
     let mut v = Vec::new();
-    if let Some(out) = out {
-        if out.status.success() {
-            let text = String::from_utf8_lossy(&out.stdout);
-            for line in text.lines() {
-                let mut parts = line.split_whitespace();
-                if let Some(branch) = parts.next() {
-                    if let Some(upstream) = parts.next() {
-                        if !upstream.trim().is_empty() {
-                            v.push((branch.to_string(), upstream.to_string()));
-                        }
-                    }
-                }
+    if let Some(out) = out
+        && out.status.success()
+    {
+        let text = String::from_utf8_lossy(&out.stdout);
+        for line in text.lines() {
+            let mut parts = line.split_whitespace();
+            if let Some(branch) = parts.next()
+                && let Some(upstream) = parts.next()
+                && !upstream.trim().is_empty()
+            {
+                v.push((branch.to_string(), upstream.to_string()));
             }
         }
     }

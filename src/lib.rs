@@ -2,6 +2,7 @@
 #![deny(warnings, clippy::all, clippy::pedantic)]
 
 mod git;
+mod git_rewrite;
 pub mod output;
 mod report;
 mod scan;
@@ -9,6 +10,9 @@ mod system;
 mod types;
 
 pub use git::{DefaultGitRunner, GitRunner};
+pub use git_rewrite::{GitRewriteError, collect_git_rewrite_entries};
 pub use report::{collect_report_data, generate_report, humanize_age_public};
 pub use system::{Clock, DefaultClock, DefaultFsOps, FsOps};
-pub use types::{Options, PushableEntry, ReportData, StagedEntry, UncommittedEntry};
+pub use types::{
+    GitRewriteEntry, Options, PushableEntry, ReportData, StagedEntry, UncommittedEntry,
+};
