@@ -19,7 +19,7 @@
 - `time.rs` for datetime parsing and bound computations.
 - Keep or relocate tests under the new module tree.
 
-### src/report.rs
+### src/report.rs ✅
 - Move to `src/report/` with `mod.rs` re-exporting the public API.
 - `collector.rs` for root expansion and repository discovery.
 - `repository.rs` for processing a single repo into metrics and pushable entries.
