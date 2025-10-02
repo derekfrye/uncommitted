@@ -5,7 +5,7 @@
 - Extract renderers into dedicated files: `uncommitted.rs`, `staged.rs`, `pushable.rs`, `git_rewrite.rs`.
 - Move styling helpers (`apply_style`, `apply_title_line`) into `style.rs` reused by renderers.
 
-### src/git.rs
+### src/git.rs ✅
 - Split into `src/git/` directory with `mod.rs` exposing the public surface.
 - `runner.rs` for `GitRunner` trait and `DefaultGitRunner`.
 - `refs.rs` for branch/upstream helpers and ahead/age computations.
