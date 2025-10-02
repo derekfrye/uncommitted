@@ -11,7 +11,7 @@
 - `refs.rs` for branch/upstream helpers and ahead/age computations.
 - `metrics.rs` for diff parsing, metrics structs, and staged/uncommitted checks.
 
-### src/git_rewrite.rs
+### src/git_rewrite.rs ✅
 - Reorganize as `src/git_rewrite/` with `mod.rs` containing `collect_git_rewrite_entries`.
 - `error.rs` for `GitRewriteError` definition and impl.
 - `config.rs` for config structs plus `build_pairs`.
