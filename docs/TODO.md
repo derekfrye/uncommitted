@@ -1,6 +1,6 @@
 ## Refactor Large Modules
 
-### src/output/tab.rs
+### src/output/tab.rs ✅
 - Create directory `src/output/tab/` with `mod.rs` providing `format_tab` and `TabStyle`.
 - Extract renderers into dedicated files: `uncommitted.rs`, `staged.rs`, `pushable.rs`, `git_rewrite.rs`.
 - Move styling helpers (`apply_style`, `apply_title_line`) into `style.rs` reused by renderers.
