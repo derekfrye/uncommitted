@@ -1,10 +1,15 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::time::Duration;
+use std::sync::{
+    Arc,
+    atomic::{AtomicBool, Ordering},
+};
+use std::thread;
+use std::time::{Duration, Instant};
 
 use chrono::{DateTime, Local, Utc};
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rayon::{ThreadPoolBuilder, prelude::*};
 use serde_json::Value;
 
@@ -28,13 +33,17 @@ pub(crate) fn collect_entries(
     let now_utc: DateTime<Utc> = clock.now().into();
     let now_local: DateTime<Local> = now_utc.with_timezone(&Local);
 
-    let progress = ProgressBar::new(pairs.len() as u64);
-    let style =
+    let multi = Arc::new(MultiProgress::new());
+    let overall = multi.add(ProgressBar::new(pairs.len() as u64));
+    let overall_style =
         ProgressStyle::with_template("[{elapsed_precise}] {bar:40.cyan/blue} {pos}/{len} {msg}")
             .unwrap_or_else(|_| ProgressStyle::default_bar());
-    progress.set_style(style);
-    progress.enable_steady_tick(Duration::from_millis(100));
-    progress.set_message("running git rewrite scans");
+    overall.set_style(overall_style);
+    overall.enable_steady_tick(Duration::from_millis(100));
+    overall.set_message("running git rewrite scans");
+
+    let worker_style = ProgressStyle::with_template("{spinner} {msg}")
+        .unwrap_or_else(|_| ProgressStyle::default_spinner());
 
     let thread_count = num_cpus::get();
     let thread_pool = ThreadPoolBuilder::new()
@@ -43,29 +52,72 @@ pub(crate) fn collect_entries(
         .map_err(|source| GitRewriteError::ParallelInit { source })?;
 
     let binary_path = binary_path.to_path_buf();
+    let multi_for_tasks = Arc::clone(&multi);
+    let overall_for_tasks = overall.clone();
 
     let result = thread_pool.install(|| {
+        let worker_style = worker_style.clone();
         pairs
             .into_par_iter()
             .map(|pair| {
-                let progress = progress.clone();
-                let entry = run_pair(pair, &binary_path, now_local.clone());
-                progress.inc(1);
-                entry
+                let worker_pb = multi_for_tasks.add(ProgressBar::new_spinner());
+                worker_pb.set_style(worker_style.clone());
+                worker_pb.enable_steady_tick(Duration::from_millis(100));
+
+                let label = last_component(&pair.source.path);
+                let padded_label = format!("{label:<24}");
+                worker_pb.set_message(format!(
+                    "{label:<24} {elapsed:>5}s",
+                    label = padded_label,
+                    elapsed = 0
+                ));
+
+                let running = Arc::new(AtomicBool::new(true));
+                let running_flag = Arc::clone(&running);
+                let pb_for_updater = worker_pb.clone();
+                let label_for_updater = padded_label.clone();
+                let start = Instant::now();
+
+                let updater = thread::spawn(move || {
+                    while running_flag.load(Ordering::Relaxed) {
+                        let elapsed = start.elapsed().as_secs();
+                        pb_for_updater.set_message(format!(
+                            "{label:<24} {elapsed:>5}s",
+                            label = label_for_updater,
+                            elapsed = elapsed
+                        ));
+                        thread::sleep(Duration::from_millis(200));
+                    }
+                    let elapsed = start.elapsed().as_secs();
+                    pb_for_updater.set_message(format!(
+                        "{label:<24} {elapsed:>5}s",
+                        label = label_for_updater,
+                        elapsed = elapsed
+                    ));
+                });
+
+                let result = run_pair(pair, &binary_path, now_local.clone());
+
+                running.store(false, Ordering::Relaxed);
+                let _ = updater.join();
+                worker_pb.finish_and_clear();
+                overall_for_tasks.inc(1);
+
+                result
             })
             .collect::<Result<Vec<_>, GitRewriteError>>()
     });
 
     match result {
         Ok(mut entries) => {
-            progress.finish_with_message("git rewrite scans complete");
+            overall.finish_with_message("git rewrite scans complete");
             entries.sort_by(|a, b| {
                 (&a.source_repo, &a.target_repo).cmp(&(&b.source_repo, &b.target_repo))
             });
             Ok(entries)
         }
         Err(err) => {
-            progress.abandon_with_message("git rewrite scans failed");
+            overall.abandon_with_message("git rewrite scans failed");
             Err(err)
         }
     }
