@@ -42,8 +42,8 @@ pub(crate) fn render(data: &ReportData, style: TabStyle) -> String {
             |secs| humanize_age_public(Duration::from_secs(secs)),
         );
         builder.push_record([
-            entry.source_repo.clone(),
-            entry.target_repo.clone(),
+            format!("{}:{}", entry.source_repo, entry.source_branch),
+            format!("{}:{}", entry.target_repo, entry.target_branch),
             entry.commits.to_string(),
             earliest,
             latest,
@@ -55,4 +55,33 @@ pub(crate) fn render(data: &ReportData, style: TabStyle) -> String {
     table.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
     apply_title_line(&mut table, "Git Rewrite");
     table.to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::GitRewriteEntry;
+
+    #[test]
+    fn render_appends_branch_names_to_source_and_target() {
+        let entry = GitRewriteEntry {
+            source_repo: "source_dir".to_string(),
+            source_branch: "feature".to_string(),
+            source_path: "/tmp/source_dir".to_string(),
+            target_repo: "target_dir".to_string(),
+            target_branch: "main".to_string(),
+            target_path: "/tmp/target_dir".to_string(),
+            commits: 0,
+            earliest_secs: None,
+            latest_secs: None,
+        };
+
+        let mut data = ReportData::default();
+        data.git_rewrite = Some(vec![entry]);
+
+        let output = render(&data, TabStyle::Empty);
+
+        assert!(output.contains("source_dir:feature"));
+        assert!(output.contains("target_dir:main"));
+    }
 }

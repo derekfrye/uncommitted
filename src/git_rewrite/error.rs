@@ -35,6 +35,9 @@ pub enum GitRewriteError {
         match_key: String,
         value: String,
     },
+    ParallelInit {
+        source: rayon::ThreadPoolBuildError,
+    },
 }
 
 impl std::fmt::Display for GitRewriteError {
@@ -96,6 +99,9 @@ impl std::fmt::Display for GitRewriteError {
                     f,
                     "git_rewrite dt '{value}' for match-key {match_key} did not map to a local timestamp"
                 )
+            }
+            Self::ParallelInit { source } => {
+                write!(f, "failed to initialize git rewrite worker pool: {source}")
             }
         }
     }

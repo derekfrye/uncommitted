@@ -44,7 +44,7 @@ fn collect_entries_counts_unique_commits() {
     let mut script = File::create(&script_path).expect("script file");
     writeln!(
         script,
-        "#!/usr/bin/env bash\ncat <<'JSON'\n[\n  {{ \"commit_hash\": \"abc\", \"dt\": \"01/01/24 01:00 PM\" }},\n  {{ \"commit_hash\": \"def\", \"dt\": \"01/02/24 01:30 PM\" }},\n  {{ \"commit_hash\": \"abc\", \"dt\": \"01/02/24 01:30 PM\" }}\n]\nJSON"
+        "#!/usr/bin/env bash\ncat <<'JSON'\n[\n  {{ \"commit_hash\": \"abc\", \"dt\": \"01/02/24 08:00 AM\", \"original_commit_dt\": \"01/01/24 01:00 PM\" }},\n  {{ \"commit_hash\": \"def\", \"dt\": \"01/01/24 04:00 AM\", \"original_commit_dt\": \"01/02/24 01:30 PM\" }},\n  {{ \"commit_hash\": \"abc\", \"dt\": \"01/02/24 08:00 AM\", \"original_commit_dt\": \"01/02/24 01:30 PM\" }}\n]\nJSON"
     )
     .expect("write script");
     script.sync_all().expect("flush script");
