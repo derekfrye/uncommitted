@@ -6,6 +6,7 @@ use std::time::Duration;
 use chrono::{DateTime, Local, Utc};
 use indicatif::{ProgressBar, ProgressStyle};
 use rayon::{ThreadPoolBuilder, prelude::*};
+use serde_json::Value;
 
 use crate::{system::Clock, types::GitRewriteEntry};
 
@@ -107,11 +108,35 @@ fn run_pair(
     }
 
     let stdout = output.stdout;
-    let values: Vec<serde_json::Value> =
+    let parsed: Value =
         serde_json::from_slice(&stdout).map_err(|source| GitRewriteError::Json {
             match_key: pair.key.clone(),
             source,
         })?;
+
+    let values = match parsed {
+        Value::Array(entries) => entries,
+        Value::Object(map) => {
+            if map
+                .get("msg")
+                .and_then(Value::as_str)
+                .is_some_and(|msg| msg.eq_ignore_ascii_case("nothing to do"))
+            {
+                Vec::new()
+            } else {
+                return Err(GitRewriteError::UnexpectedJson {
+                    match_key: pair.key,
+                    value: Value::Object(map),
+                });
+            }
+        }
+        other => {
+            return Err(GitRewriteError::UnexpectedJson {
+                match_key: pair.key,
+                value: other,
+            });
+        }
+    };
 
     let mut unique_commits: HashSet<String> = HashSet::new();
     let mut timestamps: Vec<DateTime<Local>> = Vec::new();

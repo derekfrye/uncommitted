@@ -26,6 +26,10 @@ pub enum GitRewriteError {
         match_key: String,
         source: serde_json::Error,
     },
+    UnexpectedJson {
+        match_key: String,
+        value: serde_json::Value,
+    },
     DateParse {
         match_key: String,
         value: String,
@@ -82,6 +86,12 @@ impl std::fmt::Display for GitRewriteError {
                 write!(
                     f,
                     "failed to parse git_rewrite output for match-key {match_key}: {source}"
+                )
+            }
+            Self::UnexpectedJson { match_key, value } => {
+                write!(
+                    f,
+                    "unexpected git_rewrite payload for match-key {match_key}: {value}"
                 )
             }
             Self::DateParse {

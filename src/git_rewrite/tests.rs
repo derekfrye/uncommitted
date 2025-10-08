@@ -78,6 +78,53 @@ fn collect_entries_counts_unique_commits() {
     assert_eq!(entry.latest_secs, Some(latest));
 }
 
+#[cfg(unix)]
+#[test]
+fn collect_entries_handles_nothing_to_do_message() {
+    let temp = tempdir().expect("tempdir");
+    let source_dir = temp.path().join("source_repo");
+    let target_dir = temp.path().join("target_repo");
+    fs::create_dir_all(&source_dir).expect("create source");
+    fs::create_dir_all(&target_dir).expect("create target");
+
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"main\"\nmatch-key = 1\nrepo-type = \"source\"\n\n[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"dev\"\nmatch-key = 1\nrepo-type = \"target\"\n",
+        source_dir.display(),
+        target_dir.display()
+    );
+    fs::write(&config_path, config_contents).expect("write config");
+
+    let script_path = temp.path().join("git_rewrite_stub.sh");
+    let mut script = File::create(&script_path).expect("script file");
+    let script_body = r#"#!/usr/bin/env bash
+cat <<'JSON'
+{
+  "msg": "nothing to do"
+}
+JSON
+"#;
+    script
+        .write_all(script_body.as_bytes())
+        .expect("write script");
+    script.sync_all().expect("flush script");
+    drop(script);
+    let mut perms = fs::metadata(&script_path).expect("meta").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&script_path, perms).expect("perm");
+
+    let now_dt = parse_local_datetime("test", "01/03/24 01:30 PM").expect("now parse");
+    let clock = FixedClock(now_dt.into());
+
+    let entries = collect_git_rewrite_entries(&config_path, &script_path, &clock).expect("entries");
+
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.commits, 0);
+    assert!(entry.earliest_secs.is_none());
+    assert!(entry.latest_secs.is_none());
+}
+
 #[test]
 fn match_key_accepts_integer() {
     #[derive(serde::Deserialize)]
