@@ -52,6 +52,10 @@ struct Args {
     /// Path to `git_rewrite` binary
     #[arg(long, requires = "git_rewrite_toml")]
     git_rewrite_path: Option<PathBuf>,
+
+    /// Hide repos whose commits/revs columns are 0
+    #[arg(long)]
+    omit_repos_up_to_date: bool,
 }
 
 fn main() {
@@ -100,8 +104,11 @@ fn run(args: &Args) -> Result<(), CliError> {
 
     match args.output {
         OutputFormat::Tab => {
-            let out = format_tab(&data, args.tab_style);
+            let (out, omitted) = format_tab(&data, args.tab_style, args.omit_repos_up_to_date);
             println!("{out}");
+            if args.omit_repos_up_to_date {
+                println!("{omitted} repos with no changes omitted.");
+            }
         }
         OutputFormat::Json => {
             let out = to_json(&data);

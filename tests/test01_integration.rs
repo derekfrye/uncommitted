@@ -160,7 +160,7 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         git_rewrite_path: None,
     };
     let data = collect_report_data(&opts, &MockFs, &MockGit, &MockClock);
-    let report = format_tab(&data, TabStyle::Ascii);
+    let (report, omitted) = format_tab(&data, TabStyle::Ascii, false);
 
     let expected = concat!(
         "+ Uncommitted Changes --+-------+-----------+\n",
@@ -180,5 +180,6 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         "+------+--------+------+----------+--------+"
     );
     assert_eq!(report, expected);
+    assert_eq!(omitted, 0);
     Ok(())
 }
