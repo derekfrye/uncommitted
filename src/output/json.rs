@@ -1,4 +1,4 @@
-use crate::ReportData;
+use crate::{ReportData, types::UntrackedReason};
 use std::fmt::Write as _;
 
 fn json_escape(s: &str) -> String {
@@ -27,6 +27,7 @@ pub fn to_json(data: &ReportData) -> String {
     write_uncommitted(&mut out, data);
     write_staged(&mut out, data);
     write_pushable(&mut out, data);
+    write_untracked(&mut out, data);
     write_git_rewrite(&mut out, data);
     out.push('}');
     out
@@ -102,6 +103,58 @@ fn write_pushable(out: &mut String, data: &ReportData) {
         }
         out.push_str(", ");
         let _ = write!(out, "\"root\":\"{}\"", json_escape(&e.root_full));
+        out.push('}');
+    }
+    out.push(']');
+}
+
+fn write_untracked(out: &mut String, data: &ReportData) {
+    out.push_str(", \"untracked_repos\": ");
+    if !data.untracked_enabled {
+        out.push_str("null");
+        return;
+    }
+
+    out.push('[');
+    for (i, entry) in data.untracked_repos.iter().enumerate() {
+        if i > 0 {
+            out.push_str(", ");
+        }
+        out.push('{');
+        let _ = write!(
+            out,
+            "\"repo\":\"{}\", \"branch\":\"{}\", \"root\":\"{}\", \"root_display\":\"{}\", ",
+            json_escape(&entry.repo),
+            json_escape(&entry.branch),
+            json_escape(&entry.root_full),
+            json_escape(&entry.root_display)
+        );
+        match entry.revs {
+            Some(v) => {
+                let _ = write!(out, "\"revs\":{v}");
+            }
+            None => out.push_str("\"revs\":null"),
+        }
+        out.push_str(", ");
+        match entry.earliest_secs {
+            Some(v) => {
+                let _ = write!(out, "\"earliest_secs\":{v}");
+            }
+            None => out.push_str("\"earliest_secs\":null"),
+        }
+        out.push_str(", ");
+        match entry.latest_secs {
+            Some(v) => {
+                let _ = write!(out, "\"latest_secs\":{v}");
+            }
+            None => out.push_str("\"latest_secs\":null"),
+        }
+        out.push_str(", ");
+        let reason = match entry.reason {
+            UntrackedReason::Ignored => "ignored",
+            UntrackedReason::MissingConfig => "missing_config",
+        };
+        let _ = write!(out, "\"reason\":\"{reason}\"");
         out.push('}');
     }
     out.push(']');

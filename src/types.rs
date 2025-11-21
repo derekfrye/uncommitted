@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 #[derive(Debug, Clone)]
 pub struct UncommittedEntry {
     pub repo: String,
@@ -46,6 +48,36 @@ pub struct GitRewriteEntry {
     pub latest_secs: Option<u64>,
 }
 
+#[derive(Debug, Clone)]
+pub struct RepoSummary {
+    pub repo: String,
+    pub branch: String,
+    pub path: PathBuf,
+    pub root_display: String,
+    pub root_full: String,
+    pub head_revs: Option<u64>,
+    pub head_earliest_secs: Option<u64>,
+    pub head_latest_secs: Option<u64>,
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
+pub enum UntrackedReason {
+    Ignored,
+    MissingConfig,
+}
+
+#[derive(Debug, Clone)]
+pub struct UntrackedRepoEntry {
+    pub repo: String,
+    pub branch: String,
+    pub root_display: String,
+    pub root_full: String,
+    pub revs: Option<u64>,
+    pub earliest_secs: Option<u64>,
+    pub latest_secs: Option<u64>,
+    pub reason: UntrackedReason,
+}
+
 #[derive(Debug, Default, Clone)]
 pub struct ReportData {
     pub uncommitted: Vec<UncommittedEntry>,
@@ -53,6 +85,9 @@ pub struct ReportData {
     pub pushable: Vec<PushableEntry>,
     pub git_rewrite: Option<Vec<GitRewriteEntry>>,
     pub multi_root: bool,
+    pub repos: Vec<RepoSummary>,
+    pub untracked_repos: Vec<UntrackedRepoEntry>,
+    pub untracked_enabled: bool,
 }
 
 #[derive(Debug, Clone, Default)]

@@ -5,7 +5,7 @@ use clap::{Parser, ValueEnum};
 use std::path::{Path, PathBuf};
 use uncommitted::{
     DefaultClock, DefaultFsOps, DefaultGitRunner, FsOps, Options, collect_git_rewrite_entries,
-    collect_report_data,
+    collect_git_rewrite_untracked, collect_report_data,
     output::{TabStyle, format_tab, to_json},
 };
 
@@ -91,6 +91,9 @@ fn run(args: &Args) -> Result<(), CliError> {
     if let (Some(config_path), Some(binary_path)) =
         (git_rewrite_toml.as_ref(), git_rewrite_path.as_ref())
     {
+        data.untracked_enabled = true;
+        let untracked = collect_git_rewrite_untracked(config_path, &data.repos)?;
+        data.untracked_repos = untracked;
         let entries = collect_git_rewrite_entries(config_path, binary_path, &clock)?;
         data.git_rewrite = Some(entries);
     }

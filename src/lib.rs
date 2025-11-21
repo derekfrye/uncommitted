@@ -10,7 +10,9 @@ mod system;
 mod types;
 
 pub use git::{DefaultGitRunner, GitRunner};
-pub use git_rewrite::{GitRewriteError, collect_git_rewrite_entries};
+pub use git_rewrite::{
+    GitRewriteError, collect_git_rewrite_entries, collect_git_rewrite_untracked,
+};
 pub use report::{collect_report_data, generate_report, humanize_age_public};
 pub use system::{Clock, DefaultClock, DefaultFsOps, FsOps};
 pub use types::{

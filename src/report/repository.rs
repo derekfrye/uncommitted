@@ -6,7 +6,9 @@ use crate::git::{
     staged_metrics, uncommitted_metrics,
 };
 use crate::system::Clock;
-use crate::types::{Options, PushableEntry, ReportData, StagedEntry, UncommittedEntry};
+use crate::types::{
+    Options, PushableEntry, RepoSummary, ReportData, StagedEntry, UncommittedEntry,
+};
 
 #[derive(Copy, Clone)]
 pub(crate) struct RootContext<'a> {
@@ -50,11 +52,8 @@ pub(crate) fn process_repo(
     }
 
     let branches = list_local_branches_with_upstream(repo, git);
-    if branches.is_empty() {
-        return;
-    }
 
-    if opts.refresh_remotes {
+    if opts.refresh_remotes && !branches.is_empty() {
         let mut remotes = HashSet::<String>::new();
         for (_, upstream) in &branches {
             if let Some((remote, _rest)) = upstream.split_once('/') {
@@ -66,28 +65,54 @@ pub(crate) fn process_repo(
         }
     }
 
+    let mut head_revs: Option<u64> = None;
+    let mut head_earliest_secs: Option<u64> = None;
+    let mut head_latest_secs: Option<u64> = None;
+
     for (branch_name, upstream) in branches {
+        let is_head = branch_name == branch;
         if let Some(ahead) =
             crate::git::ahead_count_for_ref_pair(repo, git, &branch_name, &upstream)
-            && ahead > 0
         {
-            let (earliest, latest) = crate::git::commit_age_bounds_for_ref_pair(
-                repo,
-                git,
-                clock,
-                &branch_name,
-                &upstream,
-            )
-            .unwrap_or((None, None));
-            data.pushable.push(PushableEntry {
-                repo: name.to_string(),
-                branch: branch_name.clone(),
-                revs: ahead,
-                earliest_secs: earliest.map(|d| d.as_secs()),
-                latest_secs: latest.map(|d| d.as_secs()),
-                root_display: root.display.to_string(),
-                root_full: root.full.display().to_string(),
-            });
+            if is_head {
+                head_revs = Some(ahead);
+            }
+            if ahead > 0 {
+                let (earliest, latest) = crate::git::commit_age_bounds_for_ref_pair(
+                    repo,
+                    git,
+                    clock,
+                    &branch_name,
+                    &upstream,
+                )
+                .unwrap_or((None, None));
+                let earliest_secs = earliest.map(|d| d.as_secs());
+                let latest_secs = latest.map(|d| d.as_secs());
+                if is_head {
+                    head_earliest_secs = earliest_secs;
+                    head_latest_secs = latest_secs;
+                }
+                data.pushable.push(PushableEntry {
+                    repo: name.to_string(),
+                    branch: branch_name.clone(),
+                    revs: ahead,
+                    earliest_secs,
+                    latest_secs,
+                    root_display: root.display.to_string(),
+                    root_full: root.full.display().to_string(),
+                });
+            }
         }
     }
+
+    data.repos.push(RepoSummary {
+        repo: name.to_string(),
+        branch,
+        path: repo.to_path_buf(),
+        root_display: root.display.to_string(),
+        root_full: root.full.display().to_string(),
+        head_revs,
+        head_earliest_secs,
+        head_latest_secs,
+    });
 }

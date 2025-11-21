@@ -7,6 +7,7 @@ mod pushable;
 mod staged;
 mod style;
 mod uncommitted;
+mod untracked;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum TabStyle {
@@ -32,6 +33,9 @@ pub fn format_tab(data: &ReportData, style: TabStyle) -> String {
     sections.push(uncommitted::render(data, style, show_root));
     sections.push(staged::render(data, style, show_root));
     sections.push(pushable::render(data, style, show_root));
+    if data.untracked_enabled {
+        sections.push(untracked::render(data, style));
+    }
     if data.git_rewrite.is_some() {
         sections.push(git_rewrite::render(data, style));
     }

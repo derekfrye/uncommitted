@@ -2,8 +2,10 @@ mod config;
 mod error;
 mod executor;
 mod time;
+mod tracking;
 
 pub use error::GitRewriteError;
+pub use tracking::collect_git_rewrite_untracked;
 
 use std::path::Path;
 
