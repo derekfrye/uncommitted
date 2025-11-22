@@ -83,8 +83,15 @@ pub(crate) fn build_pairs(config: &GitRewriteConfig) -> Result<Vec<RepoPair>, Gi
 pub(crate) fn build_pairs_with_paths(
     config: &GitRewriteConfig,
 ) -> Result<PairBuildOutput, GitRewriteError> {
+    let map = populate_pair_builders(&config.repos)?;
+    finalize_pairs(map)
+}
+
+fn populate_pair_builders(
+    repos: &[RepoSpec],
+) -> Result<HashMap<String, PairBuilder>, GitRewriteError> {
     let mut map: HashMap<String, PairBuilder> = HashMap::new();
-    for repo in &config.repos {
+    for repo in repos {
         let entry = map.entry(repo.match_key.clone()).or_default();
         let endpoint = Endpoint {
             path: repo.repository_path.clone(),
@@ -99,28 +106,30 @@ pub(crate) fn build_pairs_with_paths(
         }
         match repo.repo_type {
             RepoType::Source => {
-                if entry.source.replace(endpoint).is_some() {
-                    return Err(GitRewriteError::InvalidConfig {
-                        message: format!(
-                            "multiple source repos defined for match-key {}",
-                            repo.match_key
-                        ),
-                    });
-                }
+                record_endpoint(entry.source.replace(endpoint), "source", &repo.match_key)?
             }
             RepoType::Target => {
-                if entry.target.replace(endpoint).is_some() {
-                    return Err(GitRewriteError::InvalidConfig {
-                        message: format!(
-                            "multiple target repos defined for match-key {}",
-                            repo.match_key
-                        ),
-                    });
-                }
+                record_endpoint(entry.target.replace(endpoint), "target", &repo.match_key)?
             }
         }
     }
+    Ok(map)
+}
 
+fn record_endpoint(
+    previous: Option<Endpoint>,
+    role: &str,
+    key: &str,
+) -> Result<(), GitRewriteError> {
+    if previous.is_some() {
+        return Err(GitRewriteError::InvalidConfig {
+            message: format!("multiple {role} repos defined for match-key {key}"),
+        });
+    }
+    Ok(())
+}
+
+fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<PairBuildOutput, GitRewriteError> {
     let mut pairs = Vec::new();
     let mut tracked_paths = Vec::new();
     let mut ignored_paths = Vec::new();

@@ -46,71 +46,35 @@ pub enum GitRewriteError {
 
 impl std::fmt::Display for GitRewriteError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use GitRewriteError::*;
         match self {
-            Self::ConfigRead { path, source } => {
-                write!(
-                    f,
-                    "failed to read git rewrite config {}: {source}",
-                    path.display()
-                )
-            }
-            Self::ConfigParse { path, source } => {
-                write!(
-                    f,
-                    "failed to parse git rewrite config {}: {source}",
-                    path.display()
-                )
-            }
-            Self::InvalidConfig { message } => write!(f, "invalid git rewrite config: {message}"),
-            Self::CommandIo { source } => {
-                write!(f, "failed to launch git_rewrite binary: {source}")
-            }
-            Self::CommandFailure {
+            ConfigRead { path, source } => fmt_config_io(f, "read", path, source),
+            ConfigParse { path, source } => fmt_config_io(f, "parse", path, source),
+            InvalidConfig { message } => write!(f, "invalid git rewrite config: {message}"),
+            CommandIo { source } => write!(f, "failed to launch git_rewrite binary: {source}"),
+            CommandFailure {
                 match_key,
                 status,
                 stderr,
-            } => {
-                if stderr.is_empty() {
-                    write!(
-                        f,
-                        "git_rewrite invocation for match-key {match_key} failed with status {status}"
-                    )
-                } else {
-                    write!(
-                        f,
-                        "git_rewrite invocation for match-key {match_key} failed with status {status}: {stderr}"
-                    )
-                }
-            }
-            Self::Json { match_key, source } => {
-                write!(
-                    f,
-                    "failed to parse git_rewrite output for match-key {match_key}: {source}"
-                )
-            }
-            Self::UnexpectedJson { match_key, value } => {
-                write!(
-                    f,
-                    "unexpected git_rewrite payload for match-key {match_key}: {value}"
-                )
-            }
-            Self::DateParse {
+            } => fmt_command_failure(f, match_key, status, stderr),
+            Json { match_key, source } => write!(
+                f,
+                "failed to parse git_rewrite output for match-key {match_key}: {source}"
+            ),
+            UnexpectedJson { match_key, value } => write!(
+                f,
+                "unexpected git_rewrite payload for match-key {match_key}: {value}"
+            ),
+            DateParse {
                 match_key,
                 value,
                 source,
-            } => {
-                write!(
-                    f,
-                    "failed to parse git_rewrite dt '{value}' for match-key {match_key}: {source}"
-                )
-            }
-            Self::DateOutOfRange { match_key, value } => {
-                write!(
-                    f,
-                    "git_rewrite dt '{value}' for match-key {match_key} did not map to a local timestamp"
-                )
-            }
-            Self::ParallelInit { source } => {
+            } => fmt_date_parse(f, match_key, value, source),
+            DateOutOfRange { match_key, value } => write!(
+                f,
+                "git_rewrite dt '{value}' for match-key {match_key} did not map to a local timestamp"
+            ),
+            ParallelInit { source } => {
                 write!(f, "failed to initialize git rewrite worker pool: {source}")
             }
         }
@@ -118,3 +82,47 @@ impl std::fmt::Display for GitRewriteError {
 }
 
 impl std::error::Error for GitRewriteError {}
+
+fn fmt_config_io(
+    f: &mut std::fmt::Formatter<'_>,
+    action: &str,
+    path: &PathBuf,
+    source: &impl std::fmt::Display,
+) -> std::fmt::Result {
+    write!(
+        f,
+        "failed to {action} git rewrite config {}: {source}",
+        path.display()
+    )
+}
+
+fn fmt_command_failure(
+    f: &mut std::fmt::Formatter<'_>,
+    match_key: &str,
+    status: &ExitStatus,
+    stderr: &str,
+) -> std::fmt::Result {
+    if stderr.is_empty() {
+        write!(
+            f,
+            "git_rewrite invocation for match-key {match_key} failed with status {status}"
+        )
+    } else {
+        write!(
+            f,
+            "git_rewrite invocation for match-key {match_key} failed with status {status}: {stderr}"
+        )
+    }
+}
+
+fn fmt_date_parse(
+    f: &mut std::fmt::Formatter<'_>,
+    match_key: &str,
+    value: &str,
+    source: &chrono::ParseError,
+) -> std::fmt::Result {
+    write!(
+        f,
+        "failed to parse git_rewrite dt '{value}' for match-key {match_key}: {source}"
+    )
+}
