@@ -60,7 +60,7 @@ pub(crate) struct RepoPair {
 #[derive(Debug)]
 pub(crate) struct PairBuildOutput {
     pub(crate) pairs: Vec<RepoPair>,
-    pub(crate) tracked_paths: Vec<PathBuf>,
+    pub(crate) tracked_endpoints: Vec<Endpoint>,
     pub(crate) ignored_paths: Vec<PathBuf>,
 }
 
@@ -131,7 +131,7 @@ fn record_endpoint(
 
 fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<PairBuildOutput, GitRewriteError> {
     let mut pairs = Vec::new();
-    let mut tracked_paths = Vec::new();
+    let mut tracked_endpoints = Vec::new();
     let mut ignored_paths = Vec::new();
     for (key, pair) in map {
         if pair.ignored {
@@ -143,8 +143,8 @@ fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<PairBuildOutput, 
                 message: format!("match-key {key} must define both source and target repos"),
             });
         };
-        tracked_paths.push(source.path.clone());
-        tracked_paths.push(target.path.clone());
+        tracked_endpoints.push(source.clone());
+        tracked_endpoints.push(target.clone());
         pairs.push(RepoPair {
             key,
             source,
@@ -154,7 +154,7 @@ fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<PairBuildOutput, 
     pairs.sort_by(|a, b| a.key.cmp(&b.key));
     Ok(PairBuildOutput {
         pairs,
-        tracked_paths,
+        tracked_endpoints,
         ignored_paths,
     })
 }

@@ -80,6 +80,7 @@ fn untracked_rows(entries: &[UntrackedRepoEntry]) -> Vec<String> {
             let reason = match entry.reason {
                 UntrackedReason::Ignored => "ignored",
                 UntrackedReason::MissingConfig => "missing-config",
+                UntrackedReason::MissingRepo => "missing",
             };
             format!(
                 "{}:{} ({reason}, branch: {}, revs: {}, earliest: {} ago, latest: {} ago)",

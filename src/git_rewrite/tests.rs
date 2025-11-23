@@ -267,3 +267,52 @@ ignore = 1
     assert_eq!(second.earliest_secs, Some(20));
     assert_eq!(second.latest_secs, Some(8));
 }
+
+#[test]
+fn collect_untracked_reports_missing_configured_repos() {
+    let temp = tempdir().expect("tempdir");
+    let source_dir = temp.path().join("source_repo");
+    let target_dir = temp.path().join("target_repo");
+    for dir in [&source_dir, &target_dir] {
+        fs::create_dir_all(dir).expect("make dir");
+    }
+
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "\
+[[repo]]
+repository-path = \"{src}\"
+repository-branch = \"main\"
+match-key = 1
+repo-type = \"source\"
+
+[[repo]]
+repository-path = \"{dst}\"
+repository-branch = \"dev\"
+match-key = 1
+repo-type = \"target\"
+",
+        src = source_dir.display(),
+        dst = target_dir.display()
+    );
+    fs::write(&config_path, config_contents).expect("write config");
+
+    let repos = vec![RepoSummary {
+        repo: "source_repo".to_string(),
+        branch: "main".to_string(),
+        path: source_dir.clone(),
+        root_display: "~/src".to_string(),
+        root_full: "/tmp/src".to_string(),
+        head_revs: Some(3),
+        head_earliest_secs: Some(10),
+        head_latest_secs: Some(5),
+    }];
+
+    let entries = collect_git_rewrite_untracked(&config_path, &repos).expect("untracked entries");
+    assert_eq!(entries.len(), 1);
+    let entry = &entries[0];
+    assert_eq!(entry.reason, UntrackedReason::MissingRepo);
+    assert_eq!(entry.branch, "dev");
+    assert_eq!(entry.repo, target_dir.display().to_string());
+    assert!(entry.revs.is_none());
+}

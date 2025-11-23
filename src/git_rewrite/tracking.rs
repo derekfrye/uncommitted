@@ -23,9 +23,9 @@ fn build_untracked_entries(
     build: &PairBuildOutput,
 ) -> Vec<UntrackedRepoEntry> {
     let tracked_set: HashSet<PathBuf> = build
-        .tracked_paths
+        .tracked_endpoints
         .iter()
-        .map(|p| normalize_path(p))
+        .map(|endpoint| normalize_path(&endpoint.path))
         .collect();
     let ignored_set: HashSet<PathBuf> = build
         .ignored_paths
@@ -34,8 +34,10 @@ fn build_untracked_entries(
         .collect();
 
     let mut entries = Vec::new();
+    let mut seen_paths = HashSet::new();
     for repo in repos {
         let repo_path = normalize_path(&repo.path);
+        seen_paths.insert(repo_path.clone());
         if tracked_set.contains(&repo_path) {
             continue;
         }
@@ -54,6 +56,25 @@ fn build_untracked_entries(
             earliest_secs: repo.head_earliest_secs,
             latest_secs: repo.head_latest_secs,
             reason,
+        });
+    }
+
+    let mut recorded_missing = HashSet::new();
+    for endpoint in &build.tracked_endpoints {
+        let endpoint_path = normalize_path(&endpoint.path);
+        if seen_paths.contains(&endpoint_path) || !recorded_missing.insert(endpoint_path.clone()) {
+            continue;
+        }
+        let display = endpoint.path.display().to_string();
+        entries.push(UntrackedRepoEntry {
+            repo: display.clone(),
+            branch: endpoint.branch.clone(),
+            root_display: display.clone(),
+            root_full: endpoint_path.display().to_string(),
+            revs: None,
+            earliest_secs: None,
+            latest_secs: None,
+            reason: UntrackedReason::MissingRepo,
         });
     }
 

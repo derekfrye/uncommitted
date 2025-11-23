@@ -153,6 +153,7 @@ fn write_untracked(out: &mut String, data: &ReportData) {
         let reason = match entry.reason {
             UntrackedReason::Ignored => "ignored",
             UntrackedReason::MissingConfig => "missing_config",
+            UntrackedReason::MissingRepo => "missing",
         };
         let _ = write!(out, "\"reason\":\"{reason}\"");
         out.push('}');

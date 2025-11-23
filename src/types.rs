@@ -64,6 +64,7 @@ pub struct RepoSummary {
 pub enum UntrackedReason {
     Ignored,
     MissingConfig,
+    MissingRepo,
 }
 
 #[derive(Debug, Clone)]

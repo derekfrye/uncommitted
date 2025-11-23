@@ -40,6 +40,7 @@ pub(crate) fn render(data: &ReportData, style: TabStyle) -> String {
         let status = match entry.reason {
             UntrackedReason::Ignored => "ignored",
             UntrackedReason::MissingConfig => "untracked",
+            UntrackedReason::MissingRepo => "missing",
         };
         builder.push_record([
             format!("{}:{}", entry.repo, entry.branch),

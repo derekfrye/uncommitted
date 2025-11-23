@@ -149,6 +149,16 @@ mod tests {
                 latest_secs: None,
                 reason: UntrackedReason::MissingConfig,
             },
+            UntrackedRepoEntry {
+                repo: "/tmp/missing".to_string(),
+                branch: "main".to_string(),
+                root_display: "/tmp/missing".to_string(),
+                root_full: "/tmp/missing".to_string(),
+                revs: None,
+                earliest_secs: None,
+                latest_secs: None,
+                reason: UntrackedReason::MissingRepo,
+            },
         ];
 
         let omitted = format_tab(&data, TabStyle::Empty, true);
@@ -160,5 +170,6 @@ mod tests {
         assert!(rendered.contains("missing-repo:dev"));
         assert!(rendered.contains("ignored"));
         assert!(rendered.contains("untracked"));
+        assert!(rendered.contains("missing"));
     }
 }
