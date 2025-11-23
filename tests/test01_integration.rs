@@ -160,7 +160,7 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         git_rewrite_path: None,
     };
     let data = collect_report_data(&opts, &MockFs, &MockGit, &MockClock);
-    let (report, omitted) = format_tab(&data, TabStyle::Ascii, false);
+    let report = format_tab(&data, TabStyle::Ascii, false);
 
     let expected = concat!(
         "+ Uncommitted Changes --+-------+-----------+\n",
@@ -173,13 +173,12 @@ fn test01_integration() -> Result<(), Box<dyn std::error::Error>> {
         "+------+--------+-------+-------+-----------+\n",
         "| b    | main   |    80 |     2 |         0 |\n",
         "+------+--------+-------+-------+-----------+\n",
-        "+ Pushable Commits ----+----------+--------+\n",
-        "| Repo | Branch | Revs | Earliest | Latest |\n",
-        "+------+--------+------+----------+--------+\n",
-        "| c    | main   |    7 | 1.4 days | 1.1 hr |\n",
-        "+------+--------+------+----------+--------+"
+        "+ Pushable Commits -------+----------+--------+\n",
+        "| Repo | Branch | Commits | Earliest | Latest |\n",
+        "+------+--------+---------+----------+--------+\n",
+        "| c    | main   |       7 | 1.4 days | 1.1 hr |\n",
+        "+------+--------+---------+----------+--------+"
     );
     assert_eq!(report, expected);
-    assert_eq!(omitted, 0);
     Ok(())
 }

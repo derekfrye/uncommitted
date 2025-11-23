@@ -5,7 +5,7 @@ use tabled::{
     settings::{Alignment, Modify, Panel, object::Columns},
 };
 
-use crate::{ReportData, humanize_age_public};
+use crate::{ReportData, humanize_age_public, types::UntrackedReason};
 
 use super::{
     TabStyle,
@@ -18,15 +18,15 @@ pub(crate) fn render(data: &ReportData, style: TabStyle) -> String {
         builder.push_record(["(none)"]);
         let mut table = builder.build();
         apply_style(&mut table, style);
-        table.with(Panel::header(" Untracked Repos "));
+        table.with(Panel::header(" Other Repos "));
         return table.to_string();
     }
 
     let mut builder = Builder::default();
-    builder.push_record(["Root", "Repo", "Branch", "Revs", "Earliest", "Latest"]);
+    builder.push_record(["Source", "Status", "Commits", "Earliest", "Latest"]);
 
     for entry in &data.untracked_repos {
-        let revs = entry
+        let commits = entry
             .revs
             .map_or_else(|| "n/a".to_string(), |r| r.to_string());
         let earliest = entry.earliest_secs.map_or_else(
@@ -37,11 +37,14 @@ pub(crate) fn render(data: &ReportData, style: TabStyle) -> String {
             || "n/a".to_string(),
             |secs| humanize_age_public(Duration::from_secs(secs)),
         );
+        let status = match entry.reason {
+            UntrackedReason::Ignored => "ignored",
+            UntrackedReason::MissingConfig => "untracked",
+        };
         builder.push_record([
-            entry.root_display.clone(),
-            entry.repo.clone(),
-            entry.branch.clone(),
-            revs,
+            format!("{}:{}", entry.repo, entry.branch),
+            status.to_string(),
+            commits,
             earliest,
             latest,
         ]);
@@ -49,7 +52,7 @@ pub(crate) fn render(data: &ReportData, style: TabStyle) -> String {
 
     let mut table = builder.build();
     apply_style(&mut table, style);
-    table.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
-    apply_title_line(&mut table, "Untracked Repos");
+    table.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
+    apply_title_line(&mut table, "Other Repos");
     table.to_string()
 }

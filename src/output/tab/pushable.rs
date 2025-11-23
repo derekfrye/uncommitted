@@ -50,10 +50,10 @@ fn build_table(rows: Vec<PushableEntry>, style: TabStyle, show_root: bool) -> St
     let mut table = builder.build();
     apply_style(&mut table, style);
     if show_root {
-        // Columns: 0 Root, 1 Repo, 2 Branch, 3 Revs, 4 Earliest, 5 Latest
+        // Columns: 0 Root, 1 Repo, 2 Branch, 3 Commits, 4 Earliest, 5 Latest
         table.with(Modify::new(Columns::new(3..4)).with(Alignment::right()));
     } else {
-        // Columns: 0 Repo, 1 Branch, 2 Revs, 3 Earliest, 4 Latest
+        // Columns: 0 Repo, 1 Branch, 2 Commits, 3 Earliest, 4 Latest
         table.with(Modify::new(Columns::new(2..3)).with(Alignment::right()));
     }
     apply_title_line(&mut table, "Pushable Commits");
@@ -62,9 +62,9 @@ fn build_table(rows: Vec<PushableEntry>, style: TabStyle, show_root: bool) -> St
 
 fn push_header(builder: &mut Builder, show_root: bool) {
     if show_root {
-        builder.push_record(["Root", "Repo", "Branch", "Revs", "Earliest", "Latest"]);
+        builder.push_record(["Root", "Repo", "Branch", "Commits", "Earliest", "Latest"]);
     } else {
-        builder.push_record(["Repo", "Branch", "Revs", "Earliest", "Latest"]);
+        builder.push_record(["Repo", "Branch", "Commits", "Earliest", "Latest"]);
     }
 }
 

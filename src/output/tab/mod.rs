@@ -5,11 +5,11 @@ use clap::ValueEnum;
 use crate::ReportData;
 
 mod git_rewrite;
+mod other;
 mod pushable;
 mod staged;
 mod style;
 mod uncommitted;
-mod untracked;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum TabStyle {
@@ -29,15 +29,11 @@ pub enum TabStyle {
 }
 
 #[must_use]
-pub fn format_tab(
-    data: &ReportData,
-    style: TabStyle,
-    omit_repos_up_to_date: bool,
-) -> (String, usize) {
-    let (render_data, omitted) = if omit_repos_up_to_date {
+pub fn format_tab(data: &ReportData, style: TabStyle, omit_non_actionable: bool) -> String {
+    let render_data = if omit_non_actionable {
         apply_omit_filter(data)
     } else {
-        (Cow::Borrowed(data), 0)
+        Cow::Borrowed(data)
     };
     let render_ref: &ReportData = render_data.as_ref();
 
@@ -46,36 +42,27 @@ pub fn format_tab(
     sections.push(uncommitted::render(render_ref, style, show_root));
     sections.push(staged::render(render_ref, style, show_root));
     sections.push(pushable::render(render_ref, style, show_root));
-    if render_ref.untracked_enabled {
-        sections.push(untracked::render(render_ref, style));
-    }
     if render_ref.git_rewrite.is_some() {
         sections.push(git_rewrite::render(render_ref, style));
     }
-    (sections.join("\n"), omitted)
+    if render_ref.untracked_enabled && !omit_non_actionable {
+        sections.push(other::render(render_ref, style));
+    }
+    sections.join("\n")
 }
 
-fn apply_omit_filter(data: &ReportData) -> (Cow<'_, ReportData>, usize) {
+fn apply_omit_filter(data: &ReportData) -> Cow<'_, ReportData> {
     let mut filtered = data.clone();
-    let mut omitted = 0usize;
 
-    let before_pushable = filtered.pushable.len();
     filtered.pushable.retain(|entry| entry.revs > 0);
-    omitted += before_pushable - filtered.pushable.len();
-
-    let before_untracked = filtered.untracked_repos.len();
     filtered
         .untracked_repos
         .retain(|entry| entry.revs.map_or(true, |revs| revs > 0));
-    omitted += before_untracked - filtered.untracked_repos.len();
-
     if let Some(entries) = filtered.git_rewrite.as_mut() {
-        let before_git_rewrite = entries.len();
         entries.retain(|entry| entry.commits > 0);
-        omitted += before_git_rewrite - entries.len();
     }
 
-    (Cow::Owned(filtered), omitted)
+    Cow::Owned(filtered)
 }
 
 #[cfg(test)]
@@ -104,29 +91,6 @@ mod tests {
             pushable_entry("pushable-keep", 2),
             pushable_entry("pushable-drop", 0),
         ];
-        data.untracked_enabled = true;
-        data.untracked_repos = vec![
-            UntrackedRepoEntry {
-                repo: "untracked-keep".to_string(),
-                branch: "main".to_string(),
-                root_display: "~/src".to_string(),
-                root_full: "/tmp/src".to_string(),
-                revs: Some(1),
-                earliest_secs: None,
-                latest_secs: None,
-                reason: UntrackedReason::Ignored,
-            },
-            UntrackedRepoEntry {
-                repo: "untracked-drop".to_string(),
-                branch: "main".to_string(),
-                root_display: "~/src".to_string(),
-                root_full: "/tmp/src".to_string(),
-                revs: Some(0),
-                earliest_secs: None,
-                latest_secs: None,
-                reason: UntrackedReason::Ignored,
-            },
-        ];
         data.git_rewrite = Some(vec![
             GitRewriteEntry {
                 source_repo: "rewrite-drop-src".to_string(),
@@ -152,14 +116,49 @@ mod tests {
             },
         ]);
 
-        let (output, omitted) = format_tab(&data, TabStyle::Empty, true);
+        let output = format_tab(&data, TabStyle::Empty, true);
 
-        assert_eq!(omitted, 3);
         assert!(output.contains("pushable-keep"));
         assert!(!output.contains("pushable-drop"));
-        assert!(output.contains("untracked-keep"));
-        assert!(!output.contains("untracked-drop"));
         assert!(output.contains("rewrite-keep-src:dev"));
         assert!(!output.contains("rewrite-drop-src:main"));
+    }
+
+    #[test]
+    fn format_tab_renders_other_repos_only_when_not_omitting() {
+        let mut data = ReportData::default();
+        data.untracked_enabled = true;
+        data.untracked_repos = vec![
+            UntrackedRepoEntry {
+                repo: "ignored-repo".to_string(),
+                branch: "main".to_string(),
+                root_display: "~/src".to_string(),
+                root_full: "/tmp/src".to_string(),
+                revs: Some(5),
+                earliest_secs: None,
+                latest_secs: None,
+                reason: UntrackedReason::Ignored,
+            },
+            UntrackedRepoEntry {
+                repo: "missing-repo".to_string(),
+                branch: "dev".to_string(),
+                root_display: "~/src".to_string(),
+                root_full: "/tmp/src".to_string(),
+                revs: Some(0),
+                earliest_secs: None,
+                latest_secs: None,
+                reason: UntrackedReason::MissingConfig,
+            },
+        ];
+
+        let omitted = format_tab(&data, TabStyle::Empty, true);
+        assert!(!omitted.contains("Other Repos"));
+        assert!(!omitted.contains("ignored-repo:main"));
+
+        let rendered = format_tab(&data, TabStyle::Empty, false);
+        assert!(rendered.contains("ignored-repo:main"));
+        assert!(rendered.contains("missing-repo:dev"));
+        assert!(rendered.contains("ignored"));
+        assert!(rendered.contains("untracked"));
     }
 }
