@@ -6,7 +6,7 @@ use crate::types::{RepoSummary, UntrackedReason, UntrackedRepoEntry};
 
 use super::{
     GitRewriteError,
-    config::{self, PairBuildOutput},
+    config::{self, OtherReposSummary},
 };
 
 pub fn collect_git_rewrite_untracked(
@@ -14,13 +14,13 @@ pub fn collect_git_rewrite_untracked(
     repos: &[RepoSummary],
 ) -> Result<Vec<UntrackedRepoEntry>, GitRewriteError> {
     let config = config::load_config(config_path)?;
-    let build = config::build_pairs_with_paths(&config)?;
+    let build = config::build_other_repos_summary(&config)?;
     Ok(build_untracked_entries(repos, &build))
 }
 
 fn build_untracked_entries(
     repos: &[RepoSummary],
-    build: &PairBuildOutput,
+    build: &OtherReposSummary,
 ) -> Vec<UntrackedRepoEntry> {
     let tracked_set: HashSet<PathBuf> = build
         .tracked_endpoints

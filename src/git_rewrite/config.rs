@@ -58,7 +58,7 @@ pub(crate) struct RepoPair {
 }
 
 #[derive(Debug)]
-pub(crate) struct PairBuildOutput {
+pub(crate) struct OtherReposSummary {
     pub(crate) pairs: Vec<RepoPair>,
     pub(crate) tracked_endpoints: Vec<Endpoint>,
     pub(crate) ignored_paths: Vec<PathBuf>,
@@ -77,12 +77,12 @@ pub(crate) fn load_config(path: &Path) -> Result<GitRewriteConfig, GitRewriteErr
 }
 
 pub(crate) fn build_pairs(config: &GitRewriteConfig) -> Result<Vec<RepoPair>, GitRewriteError> {
-    build_pairs_with_paths(config).map(|output| output.pairs)
+    build_other_repos_summary(config).map(|output| output.pairs)
 }
 
-pub(crate) fn build_pairs_with_paths(
+pub(crate) fn build_other_repos_summary(
     config: &GitRewriteConfig,
-) -> Result<PairBuildOutput, GitRewriteError> {
+) -> Result<OtherReposSummary, GitRewriteError> {
     let map = populate_pair_builders(&config.repos)?;
     finalize_pairs(map)
 }
@@ -129,7 +129,7 @@ fn record_endpoint(
     Ok(())
 }
 
-fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<PairBuildOutput, GitRewriteError> {
+fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<OtherReposSummary, GitRewriteError> {
     let mut pairs = Vec::new();
     let mut tracked_endpoints = Vec::new();
     let mut ignored_paths = Vec::new();
@@ -152,7 +152,7 @@ fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<PairBuildOutput, 
         });
     }
     pairs.sort_by(|a, b| a.key.cmp(&b.key));
-    Ok(PairBuildOutput {
+    Ok(OtherReposSummary {
         pairs,
         tracked_endpoints,
         ignored_paths,
