@@ -3,6 +3,7 @@ mod error;
 mod executor;
 mod time;
 mod tracking;
+mod worker;
 
 pub use error::GitRewriteError;
 pub use tracking::collect_git_rewrite_untracked;
