@@ -16,6 +16,14 @@ pub(crate) struct RootContext<'a> {
     pub(crate) full: &'a Path,
 }
 
+struct RepoContext<'a> {
+    repo: &'a Path,
+    name: &'a str,
+    branch: &'a str,
+    root_display: &'a str,
+    root_full: &'a str,
+}
+
 pub(crate) fn process_repo(
     repo: &Path,
     name: &str,
@@ -28,93 +36,64 @@ pub(crate) fn process_repo(
     let branch = current_branch(repo, git).unwrap_or_else(|| "HEAD".to_string());
     let root_display = root.display.to_string();
     let root_full = root.full.display().to_string();
-
-    record_uncommitted(
+    let ctx = RepoContext {
         repo,
         name,
-        &branch,
-        opts,
-        git,
-        &root_display,
-        &root_full,
-        data,
-    );
-    record_staged(repo, name, &branch, git, &root_display, &root_full, data);
+        branch: &branch,
+        root_display: &root_display,
+        root_full: &root_full,
+    };
+
+    record_uncommitted(&ctx, opts, git, data);
+    record_staged(&ctx, git, data);
 
     let branches = list_local_branches_with_upstream(repo, git);
     refresh_remotes(repo, opts, git, &branches);
 
-    let (head_revs, head_earliest_secs, head_latest_secs) = record_pushables(
-        repo,
-        name,
-        &branch,
-        branches,
-        git,
-        clock,
-        &root_display,
-        &root_full,
-        data,
-    );
+    let (head_revs, head_earliest_secs, head_latest_secs) =
+        record_pushables(&ctx, branches, git, clock, data);
 
-    add_repo_summary(
-        repo,
-        name,
-        branch,
-        head_revs,
-        head_earliest_secs,
-        head_latest_secs,
-        &root_display,
-        &root_full,
-        data,
-    );
+    add_repo_summary(&ctx, head_revs, head_earliest_secs, head_latest_secs, data);
 }
 
 fn record_uncommitted(
-    repo: &Path,
-    name: &str,
-    branch: &str,
+    ctx: &RepoContext<'_>,
     opts: &Options,
     git: &dyn crate::git::GitRunner,
-    root_display: &str,
-    root_full: &str,
     data: &mut ReportData,
 ) {
-    if !has_uncommitted(repo, !opts.no_untracked, git) {
+    if !has_uncommitted(ctx.repo, !opts.no_untracked, git) {
         return;
     }
-    let metrics = uncommitted_metrics(repo, !opts.no_untracked, git);
+    let metrics = uncommitted_metrics(ctx.repo, !opts.no_untracked, git);
     data.uncommitted.push(UncommittedEntry {
-        repo: name.to_string(),
-        branch: branch.to_string(),
+        repo: ctx.name.to_string(),
+        branch: ctx.branch.to_string(),
         lines: metrics.lines,
         files: metrics.files,
         untracked: metrics.untracked,
-        root_display: root_display.to_string(),
-        root_full: root_full.to_string(),
+        root_display: ctx.root_display.to_string(),
+        root_full: ctx.root_full.to_string(),
     });
 }
 
 fn record_staged(
-    repo: &Path,
-    name: &str,
-    branch: &str,
+    ctx: &RepoContext<'_>,
     git: &dyn crate::git::GitRunner,
-    root_display: &str,
-    root_full: &str,
     data: &mut ReportData,
 ) {
-    if !has_staged(repo, git) {
+    if !has_staged(ctx.repo, git) {
         return;
     }
-    let metrics = staged_metrics(repo, git);
+    let metrics = staged_metrics(ctx.repo, git);
     data.staged.push(StagedEntry {
-        repo: name.to_string(),
-        branch: branch.to_string(),
+        repo: ctx.name.to_string(),
+        branch: ctx.branch.to_string(),
         lines: metrics.lines,
         files: metrics.files,
         untracked: metrics.untracked,
-        root_display: root_display.to_string(),
-        root_full: root_full.to_string(),
+        root_display: ctx.root_display.to_string(),
+        root_full: ctx.root_full.to_string(),
     });
 }
 
@@ -138,16 +117,11 @@ fn refresh_remotes(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
 fn record_pushables(
-    repo: &Path,
-    name: &str,
-    head_branch: &str,
+    ctx: &RepoContext<'_>,
     branches: Vec<(String, String)>,
     git: &dyn crate::git::GitRunner,
     clock: &dyn Clock,
-    root_display: &str,
-    root_full: &str,
     data: &mut ReportData,
 ) -> (Option<u64>, Option<u64>, Option<u64>) {
     let mut head_revs = None;
@@ -155,33 +129,34 @@ fn record_pushables(
     let mut head_latest_secs = None;
 
     for (branch_name, upstream) in branches {
-        let Some(ahead) = crate::git::ahead_count_for_ref_pair(repo, git, &branch_name, &upstream)
+        let Some(ahead) =
+            crate::git::ahead_count_for_ref_pair(ctx.repo, git, &branch_name, &upstream)
         else {
             continue;
         };
-        if branch_name == head_branch {
+        if branch_name == ctx.branch {
             head_revs = Some(ahead);
         }
         if ahead == 0 {
             continue;
         }
         let (earliest, latest) =
-            crate::git::commit_age_bounds_for_ref_pair(repo, git, clock, &branch_name, &upstream)
+            crate::git::commit_age_bounds_for_ref_pair(ctx.repo, git, clock, &branch_name, &upstream)
                 .unwrap_or((None, None));
         let earliest_secs = earliest.map(|d| d.as_secs());
         let latest_secs = latest.map(|d| d.as_secs());
-        if branch_name == head_branch {
+        if branch_name == ctx.branch {
             head_earliest_secs = earliest_secs;
             head_latest_secs = latest_secs;
         }
         data.pushable.push(PushableEntry {
-            repo: name.to_string(),
+            repo: ctx.name.to_string(),
             branch: branch_name.clone(),
             revs: ahead,
             earliest_secs,
             latest_secs,
-            root_display: root_display.to_string(),
-            root_full: root_full.to_string(),
+            root_display: ctx.root_display.to_string(),
+            root_full: ctx.root_full.to_string(),
         });
     }
 
@@ -189,22 +164,18 @@ fn record_pushables(
 }
 
 fn add_repo_summary(
-    repo: &Path,
-    name: &str,
-    branch: String,
+    ctx: &RepoContext<'_>,
     head_revs: Option<u64>,
     head_earliest_secs: Option<u64>,
     head_latest_secs: Option<u64>,
-    root_display: &str,
-    root_full: &str,
     data: &mut ReportData,
 ) {
     data.repos.push(RepoSummary {
-        repo: name.to_string(),
-        branch,
-        path: repo.to_path_buf(),
-        root_display: root_display.to_string(),
-        root_full: root_full.to_string(),
+        repo: ctx.name.to_string(),
+        branch: ctx.branch.to_string(),
+        path: ctx.repo.to_path_buf(),
+        root_display: ctx.root_display.to_string(),
+        root_full: ctx.root_full.to_string(),
         head_revs,
         head_earliest_secs,
         head_latest_secs,

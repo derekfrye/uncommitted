@@ -23,36 +23,7 @@ pub(crate) fn render(data: &ReportData, style: TabStyle) -> String {
     }
 
     let rows = sorted_entries(entries);
-    build_table(rows, style)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::types::GitRewriteEntry;
-
-    #[test]
-    fn render_appends_branch_names_to_source_and_target() {
-        let entry = GitRewriteEntry {
-            source_repo: "source_dir".to_string(),
-            source_branch: "feature".to_string(),
-            source_path: "/tmp/source_dir".to_string(),
-            target_repo: "target_dir".to_string(),
-            target_branch: "main".to_string(),
-            target_path: "/tmp/target_dir".to_string(),
-            commits: 0,
-            earliest_secs: None,
-            latest_secs: None,
-        };
-
-        let mut data = ReportData::default();
-        data.git_rewrite = Some(vec![entry]);
-
-        let output = render(&data, TabStyle::Empty);
-
-        assert!(output.contains("source_dir:feature"));
-        assert!(output.contains("target_dir:main"));
-    }
+    build_table(&rows, style)
 }
 
 fn render_empty_table(style: TabStyle) -> String {
@@ -70,10 +41,10 @@ fn sorted_entries(entries: &[GitRewriteEntry]) -> Vec<GitRewriteEntry> {
     rows
 }
 
-fn build_table(rows: Vec<GitRewriteEntry>, style: TabStyle) -> String {
+fn build_table(rows: &[GitRewriteEntry], style: TabStyle) -> String {
     let mut builder = Builder::default();
     builder.push_record(["Source", "Target", "Commits", "Earliest", "Latest"]);
-    for entry in &rows {
+    for entry in rows {
         builder.push_record(format_entry(entry));
     }
 
@@ -98,4 +69,35 @@ fn format_entry(entry: &GitRewriteEntry) -> [String; 5] {
             |secs| humanize_age_public(Duration::from_secs(secs)),
         ),
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::GitRewriteEntry;
+
+    #[test]
+    fn render_appends_branch_names_to_source_and_target() {
+        let entry = GitRewriteEntry {
+            source_repo: "source_dir".to_string(),
+            source_branch: "feature".to_string(),
+            source_path: "/tmp/source_dir".to_string(),
+            target_repo: "target_dir".to_string(),
+            target_branch: "main".to_string(),
+            target_path: "/tmp/target_dir".to_string(),
+            commits: 0,
+            earliest_secs: None,
+            latest_secs: None,
+        };
+
+        let data = ReportData {
+            git_rewrite: Some(vec![entry]),
+            ..Default::default()
+        };
+
+        let output = render(&data, TabStyle::Empty);
+
+        assert!(output.contains("source_dir:feature"));
+        assert!(output.contains("target_dir:main"));
+    }
 }

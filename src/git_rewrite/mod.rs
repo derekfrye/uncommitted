@@ -24,7 +24,7 @@ pub fn collect_git_rewrite_entries(
 ) -> Result<Vec<GitRewriteEntry>, GitRewriteError> {
     let config = config::load_config(config_path)?;
     let pairs = config::build_pairs(&config)?;
-    executor::collect_entries(pairs, binary_path, clock)
+    executor::collect_entries(&pairs, binary_path, clock)
 }
 
 #[cfg(test)]

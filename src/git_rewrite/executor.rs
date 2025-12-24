@@ -15,7 +15,7 @@ use crate::{system::Clock, types::GitRewriteEntry};
 use super::{config::RepoPair, error::GitRewriteError, worker};
 
 pub(crate) fn collect_entries(
-    pairs: Vec<RepoPair>,
+    pairs: &[RepoPair],
     binary_path: &Path,
     clock: &dyn Clock,
 ) -> Result<Vec<GitRewriteEntry>, GitRewriteError> {
@@ -35,9 +35,9 @@ pub(crate) fn collect_entries(
             pairs,
             &binary_path,
             now_local,
-            worker_style,
-            multi_for_tasks,
-            overall_for_tasks,
+            &worker_style,
+            &multi_for_tasks,
+            &overall_for_tasks,
         )
     });
 
@@ -84,38 +84,31 @@ fn build_thread_pool() -> Result<rayon::ThreadPool, GitRewriteError> {
 }
 
 fn run_pairs_with_progress(
-    pairs: Vec<RepoPair>,
+    pairs: &[RepoPair],
     binary_path: &PathBuf,
     now_local: DateTime<Local>,
-    worker_style: ProgressStyle,
-    multi: Arc<MultiProgress>,
-    overall: ProgressBar,
+    worker_style: &ProgressStyle,
+    multi: &Arc<MultiProgress>,
+    overall: &ProgressBar,
 ) -> Result<Vec<GitRewriteEntry>, GitRewriteError> {
     pairs
-        .into_par_iter()
+        .par_iter()
         .map(|pair| {
-            run_pair_with_progress(
-                pair,
-                binary_path,
-                now_local.clone(),
-                worker_style.clone(),
-                &multi,
-                &overall,
-            )
+            run_pair_with_progress(pair, binary_path, now_local, worker_style, multi, overall)
         })
         .collect()
 }
 
 fn run_pair_with_progress(
-    pair: RepoPair,
+    pair: &RepoPair,
     binary_path: &PathBuf,
     now_local: DateTime<Local>,
-    worker_style: ProgressStyle,
+    worker_style: &ProgressStyle,
     multi: &Arc<MultiProgress>,
     overall: &ProgressBar,
 ) -> Result<GitRewriteEntry, GitRewriteError> {
     let worker_pb = multi.add(ProgressBar::new_spinner());
-    worker_pb.set_style(worker_style);
+    worker_pb.set_style(worker_style.clone());
     worker_pb.enable_steady_tick(Duration::from_millis(100));
 
     let label = format!("{:<24}", worker::repo_display_name(&pair.source.path));

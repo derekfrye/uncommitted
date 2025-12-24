@@ -16,13 +16,15 @@ use super::{
 };
 
 pub(crate) fn run_pair(
-    pair: RepoPair,
+    pair: &RepoPair,
     binary_path: &PathBuf,
     now_local: DateTime<Local>,
 ) -> Result<GitRewriteEntry, GitRewriteError> {
-    let output = invoke_git_rewrite(&pair, binary_path)?;
-    let values = parse_payload(&pair, &output.stdout)?;
-    let (commits, timestamps) = summarize_entries(&values, &pair)?;
+    let commit_from = pair.commit_from.as_deref().unwrap_or("NEXT");
+    let commit_to = pair.commit_to.as_deref().unwrap_or("HEAD");
+    let output = invoke_git_rewrite(pair, binary_path, commit_from, commit_to)?;
+    let values = parse_payload(pair, &output.stdout)?;
+    let (commits, timestamps) = summarize_entries(&values, pair)?;
     let (earliest_secs, latest_secs) = compute_bounds(&timestamps, now_local);
 
     let source_repo = repo_display_name(&pair.source.path);
@@ -44,8 +46,11 @@ pub(crate) fn run_pair(
 fn invoke_git_rewrite(
     pair: &RepoPair,
     binary_path: &PathBuf,
+    commit_from: &str,
+    commit_to: &str,
 ) -> Result<std::process::Output, GitRewriteError> {
-    let output = Command::new(binary_path)
+    let mut command = Command::new(binary_path);
+    command
         .arg("--source-repository-path")
         .arg(&pair.source.path)
         .arg("--source-repository-branch")
@@ -53,11 +58,17 @@ fn invoke_git_rewrite(
         .arg("--target-repo")
         .arg(&pair.target.path)
         .arg("--target-repo-branch")
-        .arg(&pair.target.branch)
+        .arg(&pair.target.branch);
+    if let Some(lookback) = pair.commit_count_lookback {
+        command
+            .arg("--commit-msg-to-match-on-for-next-logic")
+            .arg(lookback.to_string());
+    }
+    let output = command
         .arg("--commit-from")
-        .arg("NEXT")
+        .arg(commit_from)
         .arg("--commit-to")
-        .arg("HEAD")
+        .arg(commit_to)
         .arg("--mode")
         .arg("print")
         .arg("--output-format")

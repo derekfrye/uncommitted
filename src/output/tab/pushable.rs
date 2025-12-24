@@ -93,7 +93,8 @@ fn row_values(entry: &PushableEntry, show_root: bool) -> Vec<String> {
 }
 
 fn format_age(value: Option<u64>) -> String {
-    value
-        .map(|secs| humanize_age_public(Duration::from_secs(secs)))
-        .unwrap_or_else(|| "n/a".to_string())
+    value.map_or_else(
+        || "n/a".to_string(),
+        |secs| humanize_age_public(Duration::from_secs(secs)),
+    )
 }

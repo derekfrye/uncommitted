@@ -57,7 +57,7 @@ fn apply_omit_filter(data: &ReportData) -> Cow<'_, ReportData> {
     filtered.pushable.retain(|entry| entry.revs > 0);
     filtered
         .untracked_repos
-        .retain(|entry| entry.revs.map_or(true, |revs| revs > 0));
+        .retain(|entry| entry.revs.is_none_or(|revs| revs > 0));
     if let Some(entries) = filtered.git_rewrite.as_mut() {
         entries.retain(|entry| entry.commits > 0);
     }
@@ -86,35 +86,37 @@ mod tests {
 
     #[test]
     fn format_tab_omits_zero_revs_and_commits_when_requested() {
-        let mut data = ReportData::default();
-        data.pushable = vec![
-            pushable_entry("pushable-keep", 2),
-            pushable_entry("pushable-drop", 0),
-        ];
-        data.git_rewrite = Some(vec![
-            GitRewriteEntry {
-                source_repo: "rewrite-drop-src".to_string(),
-                source_branch: "main".to_string(),
-                source_path: "/tmp/src1".to_string(),
-                target_repo: "rewrite-drop-target".to_string(),
-                target_branch: "main".to_string(),
-                target_path: "/tmp/dst1".to_string(),
-                commits: 0,
-                earliest_secs: None,
-                latest_secs: None,
-            },
-            GitRewriteEntry {
-                source_repo: "rewrite-keep-src".to_string(),
-                source_branch: "dev".to_string(),
-                source_path: "/tmp/src2".to_string(),
-                target_repo: "rewrite-keep-target".to_string(),
-                target_branch: "main".to_string(),
-                target_path: "/tmp/dst2".to_string(),
-                commits: 1,
-                earliest_secs: None,
-                latest_secs: None,
-            },
-        ]);
+        let data = ReportData {
+            pushable: vec![
+                pushable_entry("pushable-keep", 2),
+                pushable_entry("pushable-drop", 0),
+            ],
+            git_rewrite: Some(vec![
+                GitRewriteEntry {
+                    source_repo: "rewrite-drop-src".to_string(),
+                    source_branch: "main".to_string(),
+                    source_path: "/tmp/src1".to_string(),
+                    target_repo: "rewrite-drop-target".to_string(),
+                    target_branch: "main".to_string(),
+                    target_path: "/tmp/dst1".to_string(),
+                    commits: 0,
+                    earliest_secs: None,
+                    latest_secs: None,
+                },
+                GitRewriteEntry {
+                    source_repo: "rewrite-keep-src".to_string(),
+                    source_branch: "dev".to_string(),
+                    source_path: "/tmp/src2".to_string(),
+                    target_repo: "rewrite-keep-target".to_string(),
+                    target_branch: "main".to_string(),
+                    target_path: "/tmp/dst2".to_string(),
+                    commits: 1,
+                    earliest_secs: None,
+                    latest_secs: None,
+                },
+            ]),
+            ..Default::default()
+        };
 
         let output = format_tab(&data, TabStyle::Empty, true);
 
@@ -126,40 +128,42 @@ mod tests {
 
     #[test]
     fn format_tab_renders_other_repos_only_when_not_omitting() {
-        let mut data = ReportData::default();
-        data.untracked_enabled = true;
-        data.untracked_repos = vec![
-            UntrackedRepoEntry {
-                repo: "ignored-repo".to_string(),
-                branch: "main".to_string(),
-                root_display: "~/src".to_string(),
-                root_full: "/tmp/src".to_string(),
-                revs: Some(5),
-                earliest_secs: None,
-                latest_secs: None,
-                reason: UntrackedReason::Ignored,
-            },
-            UntrackedRepoEntry {
-                repo: "missing-repo".to_string(),
-                branch: "dev".to_string(),
-                root_display: "~/src".to_string(),
-                root_full: "/tmp/src".to_string(),
-                revs: Some(0),
-                earliest_secs: None,
-                latest_secs: None,
-                reason: UntrackedReason::MissingConfig,
-            },
-            UntrackedRepoEntry {
-                repo: "/tmp/missing".to_string(),
-                branch: "main".to_string(),
-                root_display: "/tmp/missing".to_string(),
-                root_full: "/tmp/missing".to_string(),
-                revs: None,
-                earliest_secs: None,
-                latest_secs: None,
-                reason: UntrackedReason::MissingRepo,
-            },
-        ];
+        let data = ReportData {
+            untracked_enabled: true,
+            untracked_repos: vec![
+                UntrackedRepoEntry {
+                    repo: "ignored-repo".to_string(),
+                    branch: "main".to_string(),
+                    root_display: "~/src".to_string(),
+                    root_full: "/tmp/src".to_string(),
+                    revs: Some(5),
+                    earliest_secs: None,
+                    latest_secs: None,
+                    reason: UntrackedReason::Ignored,
+                },
+                UntrackedRepoEntry {
+                    repo: "missing-repo".to_string(),
+                    branch: "dev".to_string(),
+                    root_display: "~/src".to_string(),
+                    root_full: "/tmp/src".to_string(),
+                    revs: Some(0),
+                    earliest_secs: None,
+                    latest_secs: None,
+                    reason: UntrackedReason::MissingConfig,
+                },
+                UntrackedRepoEntry {
+                    repo: "/tmp/missing".to_string(),
+                    branch: "main".to_string(),
+                    root_display: "/tmp/missing".to_string(),
+                    root_full: "/tmp/missing".to_string(),
+                    revs: None,
+                    earliest_secs: None,
+                    latest_secs: None,
+                    reason: UntrackedReason::MissingRepo,
+                },
+            ],
+            ..Default::default()
+        };
 
         let omitted = format_tab(&data, TabStyle::Empty, true);
         assert!(!omitted.contains("Other Repos"));

@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 #![deny(warnings, clippy::all, clippy::pedantic)]
 
-use clap::{Parser, ValueEnum};
+use clap::{Args as ClapArgs, Parser, ValueEnum};
 use std::path::{Path, PathBuf};
 use uncommitted::{
     DefaultClock, DefaultFsOps, DefaultGitRunner, FsOps, Options, collect_git_rewrite_entries,
@@ -25,17 +25,8 @@ struct Args {
     #[arg(long, default_value_t = 1)]
     depth: usize,
 
-    /// Ignore untracked files for 'uncommitted'
-    #[arg(long)]
-    no_untracked: bool,
-
-    /// Print debug info while scanning
-    #[arg(long)]
-    debug: bool,
-
-    /// Refresh remote tracking refs before computing pushables
-    #[arg(long)]
-    refresh_remotes: bool,
+    #[command(flatten)]
+    scan: ScanFlags,
 
     /// Output format: tab (default) or json
     #[arg(long, value_enum, default_value_t = OutputFormat::Tab)]
@@ -53,6 +44,27 @@ struct Args {
     #[arg(long, requires = "git_rewrite_toml")]
     git_rewrite_path: Option<PathBuf>,
 
+    #[command(flatten)]
+    output_flags: OutputFlags,
+}
+
+#[derive(ClapArgs, Debug)]
+struct ScanFlags {
+    /// Ignore untracked files for 'uncommitted'
+    #[arg(long)]
+    no_untracked: bool,
+
+    /// Print debug info while scanning
+    #[arg(long)]
+    debug: bool,
+
+    /// Refresh remote tracking refs before computing pushables
+    #[arg(long)]
+    refresh_remotes: bool,
+}
+
+#[derive(ClapArgs, Debug)]
+struct OutputFlags {
     /// Hide repos whose commits and revs columns are 0
     #[arg(long)]
     omit_non_actionable: bool,
@@ -83,9 +95,9 @@ fn run(args: &Args) -> Result<(), CliError> {
     let opts = Options {
         roots: args.roots.clone(),
         depth: args.depth,
-        no_untracked: args.no_untracked,
-        debug: args.debug,
-        refresh_remotes: args.refresh_remotes,
+        no_untracked: args.scan.no_untracked,
+        debug: args.scan.debug,
+        refresh_remotes: args.scan.refresh_remotes,
         git_rewrite_toml: git_rewrite_toml.clone(),
         git_rewrite_path: git_rewrite_path.clone(),
     };
@@ -104,7 +116,11 @@ fn run(args: &Args) -> Result<(), CliError> {
 
     match args.output {
         OutputFormat::Tab => {
-            let out = format_tab(&data, args.tab_style, args.omit_non_actionable);
+            let out = format_tab(
+                &data,
+                args.tab_style,
+                args.output_flags.omit_non_actionable,
+            );
             println!("{out}");
         }
         OutputFormat::Json => {

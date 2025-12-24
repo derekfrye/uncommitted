@@ -9,6 +9,8 @@ use super::{
     config::{self, OtherReposSummary},
 };
 
+/// # Errors
+/// Returns an error when the git rewrite configuration cannot be read, parsed, or is invalid.
 pub fn collect_git_rewrite_untracked(
     config_path: &Path,
     repos: &[RepoSummary],

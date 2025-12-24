@@ -14,7 +14,7 @@ use crate::{
 };
 
 use super::{
-    collect_git_rewrite_entries, collect_git_rewrite_untracked,
+    collect_git_rewrite_entries, collect_git_rewrite_untracked, GitRewriteError,
     config::match_key_to_string,
     time::{diff_seconds, parse_local_datetime},
 };
@@ -131,6 +131,100 @@ JSON
 
 #[cfg(unix)]
 #[test]
+fn collect_entries_respects_commit_overrides() {
+    let temp = tempdir().expect("tempdir");
+    let source_dir = temp.path().join("source_repo");
+    let target_dir = temp.path().join("target_repo");
+    fs::create_dir_all(&source_dir).expect("create source");
+    fs::create_dir_all(&target_dir).expect("create target");
+
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"main\"\ncommit-from = \"v1\"\nmatch-key = 1\nrepo-type = \"source\"\n\n[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"dev\"\ncommit-to = \"v2\"\nmatch-key = 1\nrepo-type = \"target\"\n",
+        source_dir.display(),
+        target_dir.display()
+    );
+    fs::write(&config_path, config_contents).expect("write config");
+
+    let log_path = temp.path().join("args.log");
+
+    let script_path = temp.path().join("git_rewrite_stub.sh");
+    let mut script = File::create(&script_path).expect("script file");
+    let script_body = format!(
+        r#"#!/usr/bin/env bash
+printf "%s\n" "$*" > "{log_path}"
+cat <<'JSON'
+[]
+JSON
+"#,
+        log_path = log_path.display()
+    );
+    script
+        .write_all(script_body.as_bytes())
+        .expect("write script");
+    script.sync_all().expect("flush script");
+    drop(script);
+    let mut perms = fs::metadata(&script_path).expect("meta").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&script_path, perms).expect("perm");
+
+    let clock = FixedClock(SystemTime::UNIX_EPOCH);
+    let entries = collect_git_rewrite_entries(&config_path, &script_path, &clock).expect("entries");
+    assert_eq!(entries.len(), 1);
+
+    let args = fs::read_to_string(&log_path).expect("log args");
+    assert!(args.contains("--commit-from v1"));
+    assert!(args.contains("--commit-to v2"));
+}
+
+#[cfg(unix)]
+#[test]
+fn collect_entries_passes_commit_count_lookback() {
+    let temp = tempdir().expect("tempdir");
+    let source_dir = temp.path().join("source_repo");
+    let target_dir = temp.path().join("target_repo");
+    fs::create_dir_all(&source_dir).expect("create source");
+    fs::create_dir_all(&target_dir).expect("create target");
+
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"main\"\ncommit-count-lookback = 5\nmatch-key = 1\nrepo-type = \"source\"\n\n[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"dev\"\nmatch-key = 1\nrepo-type = \"target\"\n",
+        source_dir.display(),
+        target_dir.display()
+    );
+    fs::write(&config_path, config_contents).expect("write config");
+
+    let log_path = temp.path().join("args.log");
+    let script_path = temp.path().join("git_rewrite_stub.sh");
+    let mut script = File::create(&script_path).expect("script file");
+    let script_body = format!(
+        r#"#!/usr/bin/env bash
+printf "%s\n" "$*" > "{log_path}"
+cat <<'JSON'
+[]
+JSON
+"#,
+        log_path = log_path.display()
+    );
+    script
+        .write_all(script_body.as_bytes())
+        .expect("write script");
+    script.sync_all().expect("flush script");
+    drop(script);
+    let mut perms = fs::metadata(&script_path).expect("meta").permissions();
+    perms.set_mode(0o755);
+    fs::set_permissions(&script_path, perms).expect("perm");
+
+    let clock = FixedClock(SystemTime::UNIX_EPOCH);
+    let entries = collect_git_rewrite_entries(&config_path, &script_path, &clock).expect("entries");
+    assert_eq!(entries.len(), 1);
+
+    let args = fs::read_to_string(&log_path).expect("log args");
+    assert!(args.contains("--commit-msg-to-match-on-for-next-logic 5"));
+}
+
+#[cfg(unix)]
+#[test]
 fn collect_entries_skips_pairs_marked_ignore() {
     let temp = tempdir().expect("tempdir");
     let source_dir = temp.path().join("source_repo");
@@ -151,6 +245,64 @@ fn collect_entries_skips_pairs_marked_ignore() {
 
     let entries = collect_git_rewrite_entries(&config_path, &binary_path, &clock).expect("entries");
     assert!(entries.is_empty());
+}
+
+#[test]
+fn commit_overrides_must_match_between_repos() {
+    let temp = tempdir().expect("tempdir");
+    let source_dir = temp.path().join("source_repo");
+    let target_dir = temp.path().join("target_repo");
+    fs::create_dir_all(&source_dir).expect("create source");
+    fs::create_dir_all(&target_dir).expect("create target");
+
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"main\"\ncommit-from = \"v1\"\nmatch-key = 1\nrepo-type = \"source\"\n\n[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"dev\"\ncommit-from = \"v2\"\nmatch-key = 1\nrepo-type = \"target\"\n",
+        source_dir.display(),
+        target_dir.display()
+    );
+    fs::write(&config_path, config_contents).expect("write config");
+
+    let clock = FixedClock(SystemTime::UNIX_EPOCH);
+    let binary_path = temp.path().join("git_rewrite_stub.sh");
+
+    let err = collect_git_rewrite_entries(&config_path, &binary_path, &clock).unwrap_err();
+    match err {
+        GitRewriteError::InvalidConfig { message } => {
+            assert!(message.contains("commit-from"));
+            assert!(message.contains("match-key 1"));
+        }
+        other => panic!("expected InvalidConfig, got {other:?}"),
+    }
+}
+
+#[test]
+fn commit_count_lookback_requires_source_repo() {
+    let temp = tempdir().expect("tempdir");
+    let source_dir = temp.path().join("source_repo");
+    let target_dir = temp.path().join("target_repo");
+    fs::create_dir_all(&source_dir).expect("create source");
+    fs::create_dir_all(&target_dir).expect("create target");
+
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"main\"\nmatch-key = 1\nrepo-type = \"source\"\n\n[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"dev\"\ncommit-count-lookback = 3\nmatch-key = 1\nrepo-type = \"target\"\n",
+        source_dir.display(),
+        target_dir.display()
+    );
+    fs::write(&config_path, config_contents).expect("write config");
+
+    let clock = FixedClock(SystemTime::UNIX_EPOCH);
+    let binary_path = temp.path().join("git_rewrite_stub.sh");
+
+    let err = collect_git_rewrite_entries(&config_path, &binary_path, &clock).unwrap_err();
+    match err {
+        GitRewriteError::InvalidConfig { message } => {
+            assert!(message.contains("commit-count-lookback"));
+            assert!(message.contains("match-key 1"));
+        }
+        other => panic!("expected InvalidConfig, got {other:?}"),
+    }
 }
 
 #[test]
@@ -222,46 +374,46 @@ fn scenario_missing_and_ignored() -> UntrackedScenario {
     write_missing_and_ignored_config(&config_path, &source_dir, &target_dir, &ignored_dir);
 
     let repos = vec![
-        repo(
-            "source_repo",
-            "main",
-            &source_dir,
-            "~/src",
-            "/tmp/src",
-            Some(3),
-            Some(10),
-            Some(5),
-        ),
-        repo(
-            "target_repo",
-            "dev",
-            &target_dir,
-            "~/main",
-            "/tmp/main",
-            Some(2),
-            None,
-            None,
-        ),
-        repo(
-            "ignored_repo",
-            "feature",
-            &ignored_dir,
-            "~/src",
-            "/tmp/src",
-            Some(1),
-            Some(20),
-            Some(8),
-        ),
-        repo(
-            "missing_repo",
-            "main",
-            &missing_dir,
-            "~/main",
-            "/tmp/main",
-            Some(0),
-            None,
-            None,
-        ),
+        repo(&RepoArgs {
+            name: "source_repo",
+            branch: "main",
+            path: &source_dir,
+            root_display: "~/src",
+            root_full: "/tmp/src",
+            head_revs: Some(3),
+            head_earliest_secs: Some(10),
+            head_latest_secs: Some(5),
+        }),
+        repo(&RepoArgs {
+            name: "target_repo",
+            branch: "dev",
+            path: &target_dir,
+            root_display: "~/main",
+            root_full: "/tmp/main",
+            head_revs: Some(2),
+            head_earliest_secs: None,
+            head_latest_secs: None,
+        }),
+        repo(&RepoArgs {
+            name: "ignored_repo",
+            branch: "feature",
+            path: &ignored_dir,
+            root_display: "~/src",
+            root_full: "/tmp/src",
+            head_revs: Some(1),
+            head_earliest_secs: Some(20),
+            head_latest_secs: Some(8),
+        }),
+        repo(&RepoArgs {
+            name: "missing_repo",
+            branch: "main",
+            path: &missing_dir,
+            root_display: "~/main",
+            root_full: "/tmp/main",
+            head_revs: Some(0),
+            head_earliest_secs: None,
+            head_latest_secs: None,
+        }),
     ];
 
     UntrackedScenario {
@@ -281,16 +433,16 @@ fn scenario_missing_configured_repo() -> UntrackedScenario {
     let config_path = temp.path().join("config.toml");
     write_basic_pair_config(&config_path, &source_dir, "main", &target_dir, "dev");
 
-    let repos = vec![repo(
-        "source_repo",
-        "main",
-        &source_dir,
-        "~/src",
-        "/tmp/src",
-        Some(3),
-        Some(10),
-        Some(5),
-    )];
+    let repos = vec![repo(&RepoArgs {
+        name: "source_repo",
+        branch: "main",
+        path: &source_dir,
+        root_display: "~/src",
+        root_full: "/tmp/src",
+        head_revs: Some(3),
+        head_earliest_secs: Some(10),
+        head_latest_secs: Some(5),
+    })];
 
     UntrackedScenario {
         config_path,
@@ -376,24 +528,26 @@ fn create_dirs(paths: &[&Path]) {
     }
 }
 
-fn repo(
-    name: &str,
-    branch: &str,
-    path: &Path,
-    root_display: &str,
-    root_full: &str,
+struct RepoArgs<'a> {
+    name: &'a str,
+    branch: &'a str,
+    path: &'a Path,
+    root_display: &'a str,
+    root_full: &'a str,
     head_revs: Option<u64>,
     head_earliest_secs: Option<u64>,
     head_latest_secs: Option<u64>,
-) -> RepoSummary {
+}
+
+fn repo(args: &RepoArgs<'_>) -> RepoSummary {
     RepoSummary {
-        repo: name.to_string(),
-        branch: branch.to_string(),
-        path: path.to_path_buf(),
-        root_display: root_display.to_string(),
-        root_full: root_full.to_string(),
-        head_revs,
-        head_earliest_secs,
-        head_latest_secs,
+        repo: args.name.to_string(),
+        branch: args.branch.to_string(),
+        path: args.path.to_path_buf(),
+        root_display: args.root_display.to_string(),
+        root_full: args.root_full.to_string(),
+        head_revs: args.head_revs,
+        head_earliest_secs: args.head_earliest_secs,
+        head_latest_secs: args.head_latest_secs,
     }
 }

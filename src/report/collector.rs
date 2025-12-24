@@ -1,5 +1,5 @@
 use std::env;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use crate::git::GitRunner;
 use crate::scan::find_repos;
@@ -16,8 +16,10 @@ pub fn collect_report_data(
 ) -> ReportData {
     let rooted = resolve_roots(opts, fs);
 
-    let mut data = ReportData::default();
-    data.multi_root = rooted.len() > 1;
+    let mut data = ReportData {
+        multi_root: rooted.len() > 1,
+        ..Default::default()
+    };
     for (root_display, root_full) in &rooted {
         scan_root(root_display, root_full, opts, fs, git, clock, &mut data);
     }
@@ -65,7 +67,7 @@ fn scan_root(
     data: &mut ReportData,
 ) {
     let repos = find_repos(fs, std::slice::from_ref(root_full), opts.depth, opts.debug);
-    log_debug(opts, root_display, root_full, repos.len());
+    log_debug(opts, root_display, root_full.as_path(), repos.len());
 
     for repo in repos {
         let name = repo
@@ -87,7 +89,7 @@ fn scan_root(
     }
 }
 
-fn log_debug(opts: &Options, root_display: &str, root_full: &PathBuf, repo_count: usize) {
+fn log_debug(opts: &Options, root_display: &str, root_full: &Path, repo_count: usize) {
     if opts.debug {
         eprintln!(
             "[debug] root_display={} root_full={} depth={} repos_found={}",

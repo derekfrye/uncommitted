@@ -17,6 +17,12 @@ pub(crate) struct RepoSpec {
     repository_path: PathBuf,
     #[serde(rename = "repository-branch")]
     repository_branch: String,
+    #[serde(rename = "commit-from")]
+    commit_from: Option<String>,
+    #[serde(rename = "commit-to")]
+    commit_to: Option<String>,
+    #[serde(rename = "commit-count-lookback")]
+    commit_count_lookback: Option<u64>,
     #[serde(rename = "match-key", deserialize_with = "match_key_to_string")]
     match_key: String,
     #[serde(rename = "repo-type")]
@@ -42,6 +48,9 @@ pub(crate) struct PairBuilder {
     target: Option<Endpoint>,
     ignored: bool,
     paths: Vec<PathBuf>,
+    commit_from: Option<String>,
+    commit_to: Option<String>,
+    commit_count_lookback: Option<u64>,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +64,9 @@ pub(crate) struct RepoPair {
     pub(crate) key: String,
     pub(crate) source: Endpoint,
     pub(crate) target: Endpoint,
+    pub(crate) commit_from: Option<String>,
+    pub(crate) commit_to: Option<String>,
+    pub(crate) commit_count_lookback: Option<u64>,
 }
 
 #[derive(Debug)]
@@ -104,27 +116,98 @@ fn populate_pair_builders(
         if entry.ignored {
             continue;
         }
+        record_override_field(
+            &mut entry.commit_from,
+            repo.commit_from.as_deref(),
+            "commit-from",
+            &repo.match_key,
+        )?;
+        record_override_field(
+            &mut entry.commit_to,
+            repo.commit_to.as_deref(),
+            "commit-to",
+            &repo.match_key,
+        )?;
+        if let Some(value) = repo.commit_count_lookback {
+            match repo.repo_type {
+                RepoType::Source => record_override_number(
+                    &mut entry.commit_count_lookback,
+                    value,
+                    "commit-count-lookback",
+                    &repo.match_key,
+                )?,
+                RepoType::Target => {
+                    return Err(GitRewriteError::InvalidConfig {
+                        message: format!(
+                            "commit-count-lookback for match-key {} must be defined on source repo",
+                            repo.match_key
+                        ),
+                    });
+                }
+            }
+        }
         match repo.repo_type {
             RepoType::Source => {
-                record_endpoint(entry.source.replace(endpoint), "source", &repo.match_key)?
+                if entry.source.is_some() {
+                    return Err(GitRewriteError::InvalidConfig {
+                        message: format!(
+                            "multiple source repos defined for match-key {}",
+                            repo.match_key
+                        ),
+                    });
+                }
+                entry.source = Some(endpoint);
             }
             RepoType::Target => {
-                record_endpoint(entry.target.replace(endpoint), "target", &repo.match_key)?
+                if entry.target.is_some() {
+                    return Err(GitRewriteError::InvalidConfig {
+                        message: format!(
+                            "multiple target repos defined for match-key {}",
+                            repo.match_key
+                        ),
+                    });
+                }
+                entry.target = Some(endpoint);
             }
         }
     }
     Ok(map)
 }
 
-fn record_endpoint(
-    previous: Option<Endpoint>,
-    role: &str,
+fn record_override_field(
+    existing: &mut Option<String>,
+    incoming: Option<&str>,
+    field: &str,
     key: &str,
 ) -> Result<(), GitRewriteError> {
-    if previous.is_some() {
-        return Err(GitRewriteError::InvalidConfig {
-            message: format!("multiple {role} repos defined for match-key {key}"),
-        });
+    if let Some(value) = incoming {
+        if let Some(current) = existing {
+            if current != value {
+                return Err(GitRewriteError::InvalidConfig {
+                    message: format!("{field} for match-key {key} must match between repos"),
+                });
+            }
+        } else {
+            *existing = Some(value.to_string());
+        }
+    }
+    Ok(())
+}
+
+fn record_override_number(
+    existing: &mut Option<u64>,
+    incoming: u64,
+    field: &str,
+    key: &str,
+) -> Result<(), GitRewriteError> {
+    if let Some(current) = existing {
+        if *current != incoming {
+            return Err(GitRewriteError::InvalidConfig {
+                message: format!("{field} for match-key {key} must match between repos"),
+            });
+        }
+    } else {
+        *existing = Some(incoming);
     }
     Ok(())
 }
@@ -149,6 +232,9 @@ fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<OtherReposSummary
             key,
             source,
             target,
+            commit_from: pair.commit_from,
+            commit_to: pair.commit_to,
+            commit_count_lookback: pair.commit_count_lookback,
         });
     }
     pairs.sort_by(|a, b| a.key.cmp(&b.key));

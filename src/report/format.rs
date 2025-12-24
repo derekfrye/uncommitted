@@ -16,21 +16,23 @@ pub fn generate_report(
     clock: &dyn Clock,
 ) -> String {
     let data = collect_report_data(opts, fs, git, clock);
+    let uncommitted = change_rows(&data.uncommitted);
+    let staged = change_rows(&data.staged);
+    let pushable = pushable_rows(&data.pushable);
     let mut sections = vec![
-        format_section("uncommitted", change_rows(&data.uncommitted)),
-        format_section("staged", change_rows(&data.staged)),
-        format_section("pushable", pushable_rows(&data.pushable)),
+        format_section("uncommitted", &uncommitted),
+        format_section("staged", &staged),
+        format_section("pushable", &pushable),
     ];
 
     if data.untracked_enabled {
-        sections.push(format_section(
-            "untracked",
-            untracked_rows(&data.untracked_repos),
-        ));
+        let untracked = untracked_rows(&data.untracked_repos);
+        sections.push(format_section("untracked", &untracked));
     }
 
     if let Some(entries) = &data.git_rewrite {
-        sections.push(format_section("git_rewrite", git_rewrite_rows(entries)));
+        let git_rewrite = git_rewrite_rows(entries);
+        sections.push(format_section("git_rewrite", &git_rewrite));
     }
 
     sections.join("\n")
@@ -113,14 +115,15 @@ fn git_rewrite_rows(entries: &[GitRewriteEntry]) -> Vec<String> {
         .collect()
 }
 
-fn format_section(label: &str, rows: Vec<String>) -> String {
+fn format_section(label: &str, rows: &[String]) -> String {
     format!("{label}: {}", rows.join(", "))
 }
 
 fn format_age(value: Option<u64>) -> String {
-    value
-        .map(|secs| humanize_age(Duration::from_secs(secs)))
-        .unwrap_or_else(|| "n/a".to_string())
+    value.map_or_else(
+        || "n/a".to_string(),
+        |secs| humanize_age(Duration::from_secs(secs)),
+    )
 }
 
 trait ChangeEntry {
