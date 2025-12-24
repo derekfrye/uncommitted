@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::git::{
     current_branch, fetch_remote, has_staged, has_uncommitted, list_local_branches_with_upstream,
-    staged_metrics, uncommitted_metrics,
+    staged_metrics, uncommitted_metrics, upstream_remote_url,
 };
 use crate::system::Clock;
 use crate::types::{
@@ -66,9 +66,13 @@ fn record_uncommitted(
         return;
     }
     let metrics = uncommitted_metrics(ctx.repo, !opts.no_untracked, git);
+    let upstream = upstream_remote_url(ctx.repo, git)
+        .map(|url| normalize_upstream_url(&url))
+        .filter(|url| !url.is_empty());
     data.uncommitted.push(UncommittedEntry {
         repo: ctx.name.to_string(),
         branch: ctx.branch.to_string(),
+        upstream,
         lines: metrics.lines,
         files: metrics.files,
         untracked: metrics.untracked,
@@ -180,4 +184,13 @@ fn add_repo_summary(
         head_earliest_secs,
         head_latest_secs,
     });
+}
+
+fn normalize_upstream_url(url: &str) -> String {
+    let trimmed = url.trim();
+    if let Some(rest) = trimmed.strip_prefix("git@github.com:") {
+        rest.to_string()
+    } else {
+        trimmed.to_string()
+    }
 }

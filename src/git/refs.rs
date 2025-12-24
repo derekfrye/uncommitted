@@ -56,6 +56,51 @@ pub(crate) fn fetch_remote(repo: &Path, git: &dyn GitRunner, remote: &str) -> bo
         .unwrap_or(false)
 }
 
+#[must_use]
+pub(crate) fn upstream_remote_url(repo: &Path, git: &dyn GitRunner) -> Option<String> {
+    if let Some(remote) = upstream_remote_name(repo, git) {
+        if let Some(url) = remote_url(repo, git, &remote) {
+            return Some(url);
+        }
+    }
+    remote_url(repo, git, "origin")
+}
+
+fn upstream_remote_name(repo: &Path, git: &dyn GitRunner) -> Option<String> {
+    let out = git
+        .run_git(
+            repo,
+            &["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"],
+        )
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let upstream = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if upstream.is_empty() {
+        return None;
+    }
+    let (remote, _rest) = upstream.split_once('/')?;
+    if remote.is_empty() {
+        None
+    } else {
+        Some(remote.to_string())
+    }
+}
+
+fn remote_url(repo: &Path, git: &dyn GitRunner, remote: &str) -> Option<String> {
+    if remote.is_empty() {
+        return None;
+    }
+    let key = format!("remote.{remote}.url");
+    let out = git.run_git(repo, &["config", "--get", &key]).ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let url = String::from_utf8_lossy(&out.stdout).trim().to_string();
+    if url.is_empty() { None } else { Some(url) }
+}
+
 pub(crate) fn ahead_count_for_ref_pair(
     repo: &Path,
     git: &dyn GitRunner,

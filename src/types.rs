@@ -4,6 +4,7 @@ use std::path::PathBuf;
 pub struct UncommittedEntry {
     pub repo: String,
     pub branch: String,
+    pub upstream: Option<String>,
     pub lines: u64,
     pub files: u64,
     pub untracked: u64,

@@ -42,9 +42,19 @@ fn write_uncommitted(out: &mut String, data: &ReportData) {
         out.push('{');
         let _ = write!(
             out,
-            "\"repo\":\"{}\", \"branch\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}, \"root\":\"{}\"",
+            "\"repo\":\"{}\", \"branch\":\"{}\", ",
             json_escape(&e.repo),
             json_escape(&e.branch),
+        );
+        match e.upstream.as_ref() {
+            Some(value) => {
+                let _ = write!(out, "\"upstream\":\"{}\", ", json_escape(value));
+            }
+            None => out.push_str("\"upstream\":null, "),
+        }
+        let _ = write!(
+            out,
+            "\"lines\":{}, \"files\":{}, \"untracked\":{}, \"root\":\"{}\"",
             e.lines,
             e.files,
             e.untracked,

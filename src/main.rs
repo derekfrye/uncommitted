@@ -1,11 +1,11 @@
 #![forbid(unsafe_code)]
 #![deny(warnings, clippy::all, clippy::pedantic)]
 
-use clap::{Args as ClapArgs, Parser, ValueEnum};
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use std::path::{Path, PathBuf};
 use uncommitted::{
     DefaultClock, DefaultFsOps, DefaultGitRunner, FsOps, Options, collect_git_rewrite_entries,
-    collect_git_rewrite_untracked, collect_report_data,
+    collect_git_rewrite_untracked, collect_report_data, git_rewrite_toml_help,
     output::{TabStyle, format_tab, to_json},
 };
 
@@ -46,6 +46,15 @@ struct Args {
 
     #[command(flatten)]
     output_flags: OutputFlags,
+
+    #[command(subcommand)]
+    command: Option<Command>,
+}
+
+#[derive(Subcommand, Debug)]
+enum Command {
+    /// Show help for git_rewrite TOML config fields
+    Toml,
 }
 
 #[derive(ClapArgs, Debug)]
@@ -71,6 +80,10 @@ struct OutputFlags {
 }
 
 fn main() {
+    if should_print_toml_help() {
+        print_toml_help();
+        return;
+    }
     let args = Args::parse();
     if let Err(err) = run(&args) {
         eprintln!("{err}");
@@ -79,6 +92,11 @@ fn main() {
 }
 
 fn run(args: &Args) -> Result<(), CliError> {
+    if matches!(args.command, Some(Command::Toml)) {
+        print_toml_help();
+        return Ok(());
+    }
+
     let fs = DefaultFsOps;
     let git = DefaultGitRunner;
     let clock = DefaultClock;
@@ -130,6 +148,25 @@ fn run(args: &Args) -> Result<(), CliError> {
     }
 
     Ok(())
+}
+
+fn print_toml_help() {
+    print!("{}", git_rewrite_toml_help());
+}
+
+fn should_print_toml_help() -> bool {
+    let mut args = std::env::args();
+    let _bin = args.next();
+    let Some(subcommand) = args.next() else {
+        return false;
+    };
+    if subcommand != "toml" {
+        return false;
+    }
+    match args.next().as_deref() {
+        None | Some("--help") | Some("-h") => true,
+        Some(_) => false,
+    }
 }
 
 fn resolve_path(fs: &DefaultFsOps, path: &Path) -> Result<PathBuf, CliError> {

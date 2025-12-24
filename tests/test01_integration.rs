@@ -9,11 +9,11 @@ use uncommitted::{
 };
 
 const EXPECTED_OUTPUT: &str = concat!(
-    "+ Uncommitted Changes --+-------+-----------+\n",
-    "| Repo | Branch | Lines | Files | Untracked |\n",
-    "+------+--------+-------+-------+-----------+\n",
-    "| a    | main   |    75 |     3 |         1 |\n",
-    "+------+--------+-------+-------+-----------+\n",
+    "+ Uncommitted Changes -------+-------+-------+-----------+\n",
+    "| Repo | Branch | Upstream   | Lines | Files | Untracked |\n",
+    "+------+--------+------------+-------+-------+-----------+\n",
+    "| a    | main   | acme/a.git |    75 |     3 |         1 |\n",
+    "+------+--------+------------+-------+-------+-----------+\n",
     "+ Staged Changes -------+-------+-----------+\n",
     "| Repo | Branch | Lines | Files | Untracked |\n",
     "+------+--------+-------+-------+-----------+\n",
@@ -119,6 +119,14 @@ impl GitRunner for MockGit {
                     } else {
                         Self::out_ok("")
                     }
+                } else {
+                    Self::out_fail()
+                }
+            }
+            "config" => {
+                if args.get(1) == Some(&"--get") {
+                    let url = format!("git@github.com:acme/{reponame}.git\n");
+                    Self::out_ok(&url)
                 } else {
                     Self::out_fail()
                 }

@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
+use clap::{Args as ClapArgs, ValueEnum};
 use serde::Deserialize;
 
 use super::error::GitRewriteError;
@@ -11,31 +12,48 @@ pub(crate) struct GitRewriteConfig {
     repos: Vec<RepoSpec>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ClapArgs)]
+#[command(about = "Fields under [[repo]] in git_rewrite TOML.")]
 pub(crate) struct RepoSpec {
+    /// Path to the git repository (TOML: repository-path)
     #[serde(rename = "repository-path")]
+    #[arg(long = "repository-path", value_name = "PATH")]
     repository_path: PathBuf,
+    /// Branch name for the repository (TOML: repository-branch)
     #[serde(rename = "repository-branch")]
+    #[arg(long = "repository-branch", value_name = "BRANCH")]
     repository_branch: String,
+    /// Optional commit-ish lower bound (TOML: commit-from; source repo only)
     #[serde(rename = "commit-from")]
+    #[arg(long = "commit-from", value_name = "REV")]
     commit_from: Option<String>,
+    /// Optional commit-ish upper bound (TOML: commit-to; source repo only)
     #[serde(rename = "commit-to")]
+    #[arg(long = "commit-to", value_name = "REV")]
     commit_to: Option<String>,
+    /// Optional commit count lookback (TOML: commit-count-lookback; source repo only)
     #[serde(rename = "commit-count-lookback")]
+    #[arg(long = "commit-count-lookback", value_name = "COUNT")]
     commit_count_lookback: Option<u64>,
+    /// Match key used to pair source/target repos (TOML: match-key; string or integer)
     #[serde(rename = "match-key", deserialize_with = "match_key_to_string")]
+    #[arg(long = "match-key", value_name = "KEY")]
     match_key: String,
+    /// Repo type (TOML: repo-type; source or target)
     #[serde(rename = "repo-type")]
+    #[arg(long = "repo-type", value_enum)]
     repo_type: RepoType,
+    /// Ignore this repo entry (TOML: ignore; accepts true/false or 1/0)
     #[serde(
         default,
         rename = "ignore",
         deserialize_with = "deserialize_ignore_flag"
     )]
+    #[arg(long, action = clap::ArgAction::Set, value_name = "BOOL")]
     ignore: bool,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, ValueEnum, Clone, Copy)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum RepoType {
     Source,
