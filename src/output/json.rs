@@ -1,219 +1,102 @@
 use crate::{ReportData, types::UntrackedReason};
-use std::fmt::Write as _;
-
-fn json_escape(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    for c in s.chars() {
-        match c {
-            '"' => out.push_str("\\\""),
-            '\\' => out.push_str("\\\\"),
-            '\n' => out.push_str("\\n"),
-            '\r' => out.push_str("\\r"),
-            '\t' => out.push_str("\\t"),
-            c if c.is_control() => {
-                let code = c as u32;
-                let _ = std::fmt::Write::write_fmt(&mut out, format_args!("\\u{code:04x}"));
-            }
-            other => out.push(other),
-        }
-    }
-    out
-}
+use serde_json::json;
 
 #[must_use]
 pub fn to_json(data: &ReportData) -> String {
-    let mut out = String::new();
-    out.push('{');
-    write_uncommitted(&mut out, data);
-    write_staged(&mut out, data);
-    write_pushable(&mut out, data);
-    write_untracked(&mut out, data);
-    write_git_rewrite(&mut out, data);
-    out.push('}');
-    out
-}
+    let uncommitted = data
+        .uncommitted
+        .iter()
+        .map(|e| {
+            json!({
+                "repo": &e.repo,
+                "branch": &e.branch,
+                "upstream": &e.upstream,
+                "lines": e.lines,
+                "files": e.files,
+                "untracked": e.untracked,
+                "root": &e.root_full,
+            })
+        })
+        .collect::<Vec<_>>();
+    let staged = data
+        .staged
+        .iter()
+        .map(|e| {
+            json!({
+                "repo": &e.repo,
+                "branch": &e.branch,
+                "lines": e.lines,
+                "files": e.files,
+                "untracked": e.untracked,
+                "root": &e.root_full,
+            })
+        })
+        .collect::<Vec<_>>();
+    let pushable = data
+        .pushable
+        .iter()
+        .map(|e| {
+            json!({
+                "repo": &e.repo,
+                "branch": &e.branch,
+                "revs": e.revs,
+                "earliest_secs": e.earliest_secs,
+                "latest_secs": e.latest_secs,
+                "root": &e.root_full,
+            })
+        })
+        .collect::<Vec<_>>();
+    let untracked_repos = if data.untracked_enabled {
+        Some(
+            data.untracked_repos
+                .iter()
+                .map(|entry| {
+                    let reason = match entry.reason {
+                        UntrackedReason::Ignored => "ignored",
+                        UntrackedReason::MissingConfig => "missing_config",
+                        UntrackedReason::MissingRepo => "missing",
+                    };
+                    json!({
+                        "repo": &entry.repo,
+                        "branch": &entry.branch,
+                        "root": &entry.root_full,
+                        "root_display": &entry.root_display,
+                        "revs": entry.revs,
+                        "earliest_secs": entry.earliest_secs,
+                        "latest_secs": entry.latest_secs,
+                        "reason": reason,
+                    })
+                })
+                .collect::<Vec<_>>(),
+        )
+    } else {
+        None
+    };
+    let git_rewrite = data.git_rewrite.as_ref().map(|entries| {
+        entries
+            .iter()
+            .map(|entry| {
+                json!({
+                    "source_repo": &entry.source_repo,
+                    "source_branch": &entry.source_branch,
+                    "source_path": &entry.source_path,
+                    "target_repo": &entry.target_repo,
+                    "target_branch": &entry.target_branch,
+                    "target_path": &entry.target_path,
+                    "commits": entry.commits,
+                    "earliest_secs": entry.earliest_secs,
+                    "latest_secs": entry.latest_secs,
+                })
+            })
+            .collect::<Vec<_>>()
+    });
 
-fn write_uncommitted(out: &mut String, data: &ReportData) {
-    out.push_str("\"uncommitted\": [");
-    for (i, e) in data.uncommitted.iter().enumerate() {
-        if i > 0 {
-            out.push_str(", ");
-        }
-        out.push('{');
-        let _ = write!(
-            out,
-            "\"repo\":\"{}\", \"branch\":\"{}\", ",
-            json_escape(&e.repo),
-            json_escape(&e.branch),
-        );
-        match e.upstream.as_ref() {
-            Some(value) => {
-                let _ = write!(out, "\"upstream\":\"{}\", ", json_escape(value));
-            }
-            None => out.push_str("\"upstream\":null, "),
-        }
-        let _ = write!(
-            out,
-            "\"lines\":{}, \"files\":{}, \"untracked\":{}, \"root\":\"{}\"",
-            e.lines,
-            e.files,
-            e.untracked,
-            json_escape(&e.root_full)
-        );
-        out.push('}');
-    }
-    out.push(']');
-}
-
-fn write_staged(out: &mut String, data: &ReportData) {
-    out.push_str(", \"staged\": [");
-    for (i, e) in data.staged.iter().enumerate() {
-        if i > 0 {
-            out.push_str(", ");
-        }
-        out.push('{');
-        let _ = write!(
-            out,
-            "\"repo\":\"{}\", \"branch\":\"{}\", \"lines\":{}, \"files\":{}, \"untracked\":{}, \"root\":\"{}\"",
-            json_escape(&e.repo),
-            json_escape(&e.branch),
-            e.lines,
-            e.files,
-            e.untracked,
-            json_escape(&e.root_full)
-        );
-        out.push('}');
-    }
-    out.push(']');
-}
-
-fn write_pushable(out: &mut String, data: &ReportData) {
-    out.push_str(", \"pushable\": [");
-    for (i, e) in data.pushable.iter().enumerate() {
-        if i > 0 {
-            out.push_str(", ");
-        }
-        out.push('{');
-        let _ = write!(out, "\"repo\":\"{}\", ", json_escape(&e.repo));
-        let _ = write!(out, "\"branch\":\"{}\", ", json_escape(&e.branch));
-        let _ = write!(out, "\"revs\":{}", e.revs);
-        out.push_str(", ");
-        match e.earliest_secs {
-            Some(v) => {
-                let _ = write!(out, "\"earliest_secs\":{v}");
-            }
-            None => out.push_str("\"earliest_secs\":null"),
-        }
-        out.push_str(", ");
-        match e.latest_secs {
-            Some(v) => {
-                let _ = write!(out, "\"latest_secs\":{v}");
-            }
-            None => out.push_str("\"latest_secs\":null"),
-        }
-        out.push_str(", ");
-        let _ = write!(out, "\"root\":\"{}\"", json_escape(&e.root_full));
-        out.push('}');
-    }
-    out.push(']');
-}
-
-fn write_untracked(out: &mut String, data: &ReportData) {
-    out.push_str(", \"untracked_repos\": ");
-    if !data.untracked_enabled {
-        out.push_str("null");
-        return;
-    }
-
-    out.push('[');
-    for (i, entry) in data.untracked_repos.iter().enumerate() {
-        if i > 0 {
-            out.push_str(", ");
-        }
-        out.push('{');
-        let _ = write!(
-            out,
-            "\"repo\":\"{}\", \"branch\":\"{}\", \"root\":\"{}\", \"root_display\":\"{}\", ",
-            json_escape(&entry.repo),
-            json_escape(&entry.branch),
-            json_escape(&entry.root_full),
-            json_escape(&entry.root_display)
-        );
-        match entry.revs {
-            Some(v) => {
-                let _ = write!(out, "\"revs\":{v}");
-            }
-            None => out.push_str("\"revs\":null"),
-        }
-        out.push_str(", ");
-        match entry.earliest_secs {
-            Some(v) => {
-                let _ = write!(out, "\"earliest_secs\":{v}");
-            }
-            None => out.push_str("\"earliest_secs\":null"),
-        }
-        out.push_str(", ");
-        match entry.latest_secs {
-            Some(v) => {
-                let _ = write!(out, "\"latest_secs\":{v}");
-            }
-            None => out.push_str("\"latest_secs\":null"),
-        }
-        out.push_str(", ");
-        let reason = match entry.reason {
-            UntrackedReason::Ignored => "ignored",
-            UntrackedReason::MissingConfig => "missing_config",
-            UntrackedReason::MissingRepo => "missing",
-        };
-        let _ = write!(out, "\"reason\":\"{reason}\"");
-        out.push('}');
-    }
-    out.push(']');
-}
-
-fn write_git_rewrite(out: &mut String, data: &ReportData) {
-    out.push_str(", \"git_rewrite\": ");
-    match data.git_rewrite.as_ref() {
-        None => out.push_str("null"),
-        Some(entries) => {
-            out.push('[');
-            for (i, entry) in entries.iter().enumerate() {
-                if i > 0 {
-                    out.push_str(", ");
-                }
-                out.push('{');
-                let _ = write!(
-                    out,
-                    "\"source_repo\":\"{}\", \"source_branch\":\"{}\", \"source_path\":\"{}\", ",
-                    json_escape(&entry.source_repo),
-                    json_escape(&entry.source_branch),
-                    json_escape(&entry.source_path)
-                );
-                let _ = write!(
-                    out,
-                    "\"target_repo\":\"{}\", \"target_branch\":\"{}\", \"target_path\":\"{}\", ",
-                    json_escape(&entry.target_repo),
-                    json_escape(&entry.target_branch),
-                    json_escape(&entry.target_path)
-                );
-                let _ = write!(out, "\"commits\":{}", entry.commits);
-                out.push_str(", ");
-                match entry.earliest_secs {
-                    Some(v) => {
-                        let _ = write!(out, "\"earliest_secs\":{v}");
-                    }
-                    None => out.push_str("\"earliest_secs\":null"),
-                }
-                out.push_str(", ");
-                match entry.latest_secs {
-                    Some(v) => {
-                        let _ = write!(out, "\"latest_secs\":{v}");
-                    }
-                    None => out.push_str("\"latest_secs\":null"),
-                }
-                out.push('}');
-            }
-            out.push(']');
-        }
-    }
+    json!({
+        "uncommitted": uncommitted,
+        "staged": staged,
+        "pushable": pushable,
+        "untracked_repos": untracked_repos,
+        "git_rewrite": git_rewrite,
+    })
+    .to_string()
 }
