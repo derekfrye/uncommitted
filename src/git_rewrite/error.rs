@@ -21,6 +21,8 @@ pub enum GitRewriteError {
         match_key: String,
         status: ExitStatus,
         stderr: String,
+        source_repo_path: PathBuf,
+        target_repo_path: PathBuf,
     },
     Json {
         match_key: String,
@@ -63,7 +65,16 @@ impl std::fmt::Display for GitRewriteError {
                 match_key,
                 status,
                 stderr,
-            } => fmt_command_failure(f, match_key, *status, stderr),
+                source_repo_path,
+                target_repo_path,
+            } => fmt_command_failure(
+                f,
+                match_key,
+                *status,
+                stderr,
+                source_repo_path.as_path(),
+                target_repo_path.as_path(),
+            ),
             GitRewriteError::Json { match_key, source } => write!(
                 f,
                 "failed to parse git_rewrite output for match-key {match_key}: {source}"
@@ -108,7 +119,10 @@ fn fmt_command_failure(
     match_key: &str,
     status: ExitStatus,
     stderr: &str,
+    source_repo_path: &Path,
+    target_repo_path: &Path,
 ) -> std::fmt::Result {
+    let stderr = enrich_branch_missing_message(stderr, source_repo_path, target_repo_path);
     if stderr.is_empty() {
         write!(
             f,
@@ -120,6 +134,33 @@ fn fmt_command_failure(
             "git_rewrite invocation for match-key {match_key} failed with status {status}: {stderr}"
         )
     }
+}
+
+fn enrich_branch_missing_message(
+    stderr: &str,
+    source_repo_path: &Path,
+    target_repo_path: &Path,
+) -> String {
+    const TARGET_MISSING: &str = " does not exist in target repository";
+    const SOURCE_MISSING: &str = " does not exist in source repository";
+
+    if stderr.contains(TARGET_MISSING) {
+        return stderr.replacen(
+            TARGET_MISSING,
+            &format!("{TARGET_MISSING} ({})", target_repo_path.display()),
+            1,
+        );
+    }
+
+    if stderr.contains(SOURCE_MISSING) {
+        return stderr.replacen(
+            SOURCE_MISSING,
+            &format!("{SOURCE_MISSING} ({})", source_repo_path.display()),
+            1,
+        );
+    }
+
+    stderr.to_string()
 }
 
 fn fmt_date_parse(

@@ -84,6 +84,8 @@ fn invoke_git_rewrite(
             match_key: pair.key.clone(),
             status: output.status,
             stderr,
+            source_repo_path: pair.source.path.clone(),
+            target_repo_path: pair.target.path.clone(),
         });
     }
 

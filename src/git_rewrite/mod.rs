@@ -10,9 +10,9 @@ pub use tracking::collect_git_rewrite_untracked;
 
 use std::path::Path;
 
-use config::RepoSpec;
 use crate::{system::Clock, types::GitRewriteEntry};
 use clap::{CommandFactory, Parser};
+use config::RepoSpec;
 
 /// Collect rows for the git rewrite table by executing the configured `git_rewrite` binary.
 ///
@@ -36,6 +36,7 @@ pub struct GitRewriteTomlHelp {
     repo: RepoSpec,
 }
 
+#[must_use]
 pub fn git_rewrite_toml_help() -> String {
     let mut cmd = GitRewriteTomlHelp::command();
     cmd.set_bin_name("uncommitted toml");
