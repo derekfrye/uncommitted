@@ -22,7 +22,15 @@ pub(crate) fn render(data: &ReportData, style: TabStyle, show_root: bool) -> Str
 
     let mut builder = Builder::default();
     if show_root {
-        builder.push_record(["Root", "Repo", "Branch", "Upstream", "Lines", "Files", "Untracked"]);
+        builder.push_record([
+            "Root",
+            "Repo",
+            "Branch",
+            "Upstream",
+            "Lines",
+            "Files",
+            "Untracked",
+        ]);
     } else {
         builder.push_record(["Repo", "Branch", "Upstream", "Lines", "Files", "Untracked"]);
     }

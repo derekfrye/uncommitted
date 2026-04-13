@@ -13,6 +13,7 @@ struct PairBuilder {
     commit_from: Option<String>,
     commit_to: Option<String>,
     commit_count_lookback: Option<u64>,
+    no_metrics: bool,
 }
 
 pub(crate) fn build_pairs(config: &GitRewriteConfig) -> Result<Vec<RepoPair>, GitRewriteError> {
@@ -57,6 +58,9 @@ fn populate_pair_builders(
         )?;
         if let Some(value) = repo.commit_count_lookback {
             record_commit_count(entry, repo, value)?;
+        }
+        if repo.no_metrics {
+            entry.no_metrics = true;
         }
         assign_endpoint(entry, endpoint, repo)?;
     }
@@ -171,6 +175,7 @@ fn finalize_pairs(map: HashMap<String, PairBuilder>) -> Result<OtherReposSummary
             commit_from: pair.commit_from,
             commit_to: pair.commit_to,
             commit_count_lookback: pair.commit_count_lookback,
+            no_metrics: pair.no_metrics,
         });
     }
     pairs.sort_by(|a, b| a.key.cmp(&b.key));

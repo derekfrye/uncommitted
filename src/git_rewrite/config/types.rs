@@ -32,6 +32,10 @@ pub(crate) struct RepoSpec {
     #[serde(rename = "commit-count-lookback")]
     #[arg(long = "commit-count-lookback", value_name = "COUNT")]
     pub(crate) commit_count_lookback: Option<u64>,
+    /// Skip expensive metrics calculation (TOML: no-metrics)
+    #[serde(default, rename = "no-metrics")]
+    #[arg(long = "no-metrics", action = clap::ArgAction::SetTrue)]
+    pub(crate) no_metrics: bool,
     /// Match key used to pair source/target repos (TOML: match-key; string or integer)
     #[serde(rename = "match-key", deserialize_with = "super::match_key_to_string")]
     #[arg(long = "match-key", value_name = "KEY")]
@@ -71,6 +75,7 @@ pub(crate) struct RepoPair {
     pub(crate) commit_from: Option<String>,
     pub(crate) commit_to: Option<String>,
     pub(crate) commit_count_lookback: Option<u64>,
+    pub(crate) no_metrics: bool,
 }
 
 #[derive(Debug)]

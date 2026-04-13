@@ -134,11 +134,7 @@ fn run(args: &Args) -> Result<(), CliError> {
 
     match args.output {
         OutputFormat::Tab => {
-            let out = format_tab(
-                &data,
-                args.tab_style,
-                args.output_flags.omit_non_actionable,
-            );
+            let out = format_tab(&data, args.tab_style, args.output_flags.omit_non_actionable);
             println!("{out}");
         }
         OutputFormat::Json => {

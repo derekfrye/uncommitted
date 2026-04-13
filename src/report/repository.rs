@@ -81,11 +81,7 @@ fn record_uncommitted(
     });
 }
 
-fn record_staged(
-    ctx: &RepoContext<'_>,
-    git: &dyn crate::git::GitRunner,
-    data: &mut ReportData,
-) {
+fn record_staged(ctx: &RepoContext<'_>, git: &dyn crate::git::GitRunner, data: &mut ReportData) {
     if !has_staged(ctx.repo, git) {
         return;
     }
@@ -144,9 +140,14 @@ fn record_pushables(
         if ahead == 0 {
             continue;
         }
-        let (earliest, latest) =
-            crate::git::commit_age_bounds_for_ref_pair(ctx.repo, git, clock, &branch_name, &upstream)
-                .unwrap_or((None, None));
+        let (earliest, latest) = crate::git::commit_age_bounds_for_ref_pair(
+            ctx.repo,
+            git,
+            clock,
+            &branch_name,
+            &upstream,
+        )
+        .unwrap_or((None, None));
         let earliest_secs = earliest.map(|d| d.as_secs());
         let latest_secs = latest.map(|d| d.as_secs());
         if branch_name == ctx.branch {

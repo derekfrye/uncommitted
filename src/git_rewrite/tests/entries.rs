@@ -136,6 +136,62 @@ fn collect_entries_passes_commit_count_lookback() {
 
 #[cfg(unix)]
 #[test]
+fn collect_entries_passes_no_metrics_when_present_on_source() {
+    let (temp, source_dir, target_dir) = temp_pair_dirs();
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"main\"\nno-metrics = true\nmatch-key = 1\nrepo-type = \"source\"\n\n[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"dev\"\nmatch-key = 1\nrepo-type = \"target\"\n",
+        source_dir.display(),
+        target_dir.display()
+    );
+    write_file(&config_path, config_contents);
+
+    let log_path = temp.path().join("args.log");
+    let script_path = temp.path().join("git_rewrite_stub.sh");
+    let script_body = format!(
+        "#!/usr/bin/env bash\nprintf \"%s\\n\" \"$*\" > \"{}\"\ncat <<'JSON'\n[]\nJSON\n",
+        log_path.display()
+    );
+    write_executable_script(&script_path, &script_body);
+
+    let clock = FixedClock(SystemTime::UNIX_EPOCH);
+    let entries = collect_git_rewrite_entries(&config_path, &script_path, &clock).expect("entries");
+    assert_eq!(entries.len(), 1);
+
+    let args = fs::read_to_string(&log_path).expect("log args");
+    assert!(args.contains("--no-metrics"));
+}
+
+#[cfg(unix)]
+#[test]
+fn collect_entries_passes_no_metrics_when_present_on_target() {
+    let (temp, source_dir, target_dir) = temp_pair_dirs();
+    let config_path = temp.path().join("config.toml");
+    let config_contents = format!(
+        "[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"main\"\nmatch-key = 1\nrepo-type = \"source\"\n\n[[repo]]\nrepository-path = \"{}\"\nrepository-branch = \"dev\"\nno-metrics = true\nmatch-key = 1\nrepo-type = \"target\"\n",
+        source_dir.display(),
+        target_dir.display()
+    );
+    write_file(&config_path, config_contents);
+
+    let log_path = temp.path().join("args.log");
+    let script_path = temp.path().join("git_rewrite_stub.sh");
+    let script_body = format!(
+        "#!/usr/bin/env bash\nprintf \"%s\\n\" \"$*\" > \"{}\"\ncat <<'JSON'\n[]\nJSON\n",
+        log_path.display()
+    );
+    write_executable_script(&script_path, &script_body);
+
+    let clock = FixedClock(SystemTime::UNIX_EPOCH);
+    let entries = collect_git_rewrite_entries(&config_path, &script_path, &clock).expect("entries");
+    assert_eq!(entries.len(), 1);
+
+    let args = fs::read_to_string(&log_path).expect("log args");
+    assert!(args.contains("--no-metrics"));
+}
+
+#[cfg(unix)]
+#[test]
 fn collect_entries_skips_pairs_marked_ignore() {
     let (temp, source_dir, target_dir) = temp_pair_dirs();
     let config_path = temp.path().join("config.toml");

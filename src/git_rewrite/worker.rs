@@ -64,6 +64,9 @@ fn invoke_git_rewrite(
             .arg("--commit-msg-to-match-on-for-next-logic")
             .arg(lookback.to_string());
     }
+    if pair.no_metrics {
+        command.arg("--no-metrics");
+    }
     let output = command
         .arg("--commit-from")
         .arg(commit_from)
