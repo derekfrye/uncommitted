@@ -132,6 +132,7 @@ fn create_dirs(paths: &[&Path]) {
     }
 }
 
+#[derive(Clone, Copy)]
 pub(super) struct RepoArgs<'a> {
     pub(super) name: &'a str,
     pub(super) branch: &'a str,

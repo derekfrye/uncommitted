@@ -58,10 +58,10 @@ pub(crate) fn fetch_remote(repo: &Path, git: &dyn GitRunner, remote: &str) -> bo
 
 #[must_use]
 pub(crate) fn upstream_remote_url(repo: &Path, git: &dyn GitRunner) -> Option<String> {
-    if let Some(remote) = upstream_remote_name(repo, git) {
-        if let Some(url) = remote_url(repo, git, &remote) {
-            return Some(url);
-        }
+    if let Some(remote) = upstream_remote_name(repo, git)
+        && let Some(url) = remote_url(repo, git, &remote)
+    {
+        return Some(url);
     }
     remote_url(repo, git, "origin")
 }

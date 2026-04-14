@@ -44,54 +44,102 @@ impl MockGit {
             stderr: Vec::new(),
         }
     }
+
+    fn run_for_each_ref(reponame: &str) -> std::process::Output {
+        if reponame == "c" {
+            Self::out_ok("main origin/main\n")
+        } else {
+            Self::out_ok("main\n")
+        }
+    }
+
+    fn run_diff(reponame: &str, args: &[&str]) -> std::process::Output {
+        let rest = &args[1..];
+        let has_cached = rest.contains(&"--cached");
+        let has_quiet = rest.contains(&"--quiet");
+        let has_numstat = rest.contains(&"--numstat");
+        if has_cached {
+            Self::run_cached_diff(reponame, has_quiet, has_numstat)
+        } else if reponame == "a" {
+            Self::run_unstaged_diff(has_quiet, has_numstat)
+        } else {
+            Self::out_ok("")
+        }
+    }
+
+    fn run_cached_diff(reponame: &str, has_quiet: bool, has_numstat: bool) -> std::process::Output {
+        if reponame != "b" {
+            return Self::out_ok("");
+        }
+
+        if has_quiet {
+            Self::out_fail()
+        } else if has_numstat {
+            Self::out_ok("40\t0\tb1\n40\t0\tb2\n")
+        } else {
+            Self::out_ok("")
+        }
+    }
+
+    fn run_unstaged_diff(has_quiet: bool, has_numstat: bool) -> std::process::Output {
+        if has_quiet {
+            Self::out_fail()
+        } else if has_numstat {
+            Self::out_ok("25\t0\ta1\n25\t0\ta2\n25\t0\ta3\n")
+        } else {
+            Self::out_ok("")
+        }
+    }
+
+    fn run_rev_parse(reponame: &str, args: &[&str]) -> std::process::Output {
+        match args {
+            ["rev-parse", "--abbrev-ref", "HEAD"] => Self::out_ok("main\n"),
+            ["rev-parse", "--abbrev-ref", "--symbolic-full-name", "@{u}"] => {
+                if reponame == "c" {
+                    Self::out_ok("origin/main\n")
+                } else {
+                    Self::out_fail()
+                }
+            }
+            ["rev-parse", "--verify", "HEAD"] => {
+                if reponame == "a" || reponame == "b" {
+                    Self::out_fail()
+                } else {
+                    Self::out_ok("")
+                }
+            }
+            _ => Self::out_fail(),
+        }
+    }
+
+    fn run_config(reponame: &str, args: &[&str]) -> std::process::Output {
+        if args.get(1) == Some(&"--get") {
+            let url = format!("git@github.com:acme/{reponame}.git\n");
+            Self::out_ok(&url)
+        } else {
+            Self::out_fail()
+        }
+    }
+
+    fn run_log(reponame: &str) -> std::process::Output {
+        if reponame == "c" {
+            let now = 1_000_000_000u64;
+            let earliest = now - 120_960;
+            let latest = now - 4_080;
+            let output = format!("{earliest}\n{latest}\n");
+            Self::out_ok(&output)
+        } else {
+            Self::out_ok("")
+        }
+    }
 }
 
 impl GitRunner for MockGit {
     fn run_git(&self, repo: &Path, args: &[&str]) -> std::io::Result<std::process::Output> {
         let reponame = repo.file_name().unwrap().to_string_lossy();
         let output = match args.first().copied().unwrap_or("") {
-            "for-each-ref" => {
-                // Enumerate local branches and their upstreams
-                if reponame == "c" {
-                    Self::out_ok("main origin/main\n")
-                } else {
-                    // repos a and b have no upstreams
-                    Self::out_ok("main\n")
-                }
-            }
-            "rev-parse" if args.len() == 3 && args[1] == "--abbrev-ref" && args[2] == "HEAD" => {
-                // Return a branch name for all repos
-                Self::out_ok("main\n")
-            }
-            "diff" => {
-                let rest = &args[1..];
-                let has_cached = rest.contains(&"--cached");
-                let has_quiet = rest.contains(&"--quiet");
-                let has_numstat = rest.contains(&"--numstat");
-                if has_cached {
-                    if reponame == "b" {
-                        if has_quiet {
-                            Self::out_fail()
-                        } else if has_numstat {
-                            Self::out_ok("40\t0\tb1\n40\t0\tb2\n")
-                        } else {
-                            Self::out_ok("")
-                        }
-                    } else {
-                        Self::out_ok("")
-                    }
-                } else if reponame == "a" {
-                    if has_quiet {
-                        Self::out_fail()
-                    } else if has_numstat {
-                        Self::out_ok("25\t0\ta1\n25\t0\ta2\n25\t0\ta3\n")
-                    } else {
-                        Self::out_ok("")
-                    }
-                } else {
-                    Self::out_ok("")
-                }
-            }
+            "for-each-ref" => Self::run_for_each_ref(&reponame),
+            "diff" => Self::run_diff(&reponame, args),
             "ls-files" => {
                 if reponame == "a" {
                     Self::out_ok("untracked.txt\n")
@@ -99,38 +147,8 @@ impl GitRunner for MockGit {
                     Self::out_ok("")
                 }
             }
-            "rev-parse" => {
-                if args.first() == Some(&"rev-parse")
-                    && args.get(1) == Some(&"--abbrev-ref")
-                    && args.get(2) == Some(&"--symbolic-full-name")
-                    && args.get(3) == Some(&"@{u}")
-                {
-                    if reponame == "c" {
-                        Self::out_ok("origin/main\n")
-                    } else {
-                        Self::out_fail()
-                    }
-                } else if args.first() == Some(&"rev-parse")
-                    && args.get(1) == Some(&"--verify")
-                    && args.get(2) == Some(&"HEAD")
-                {
-                    if reponame == "a" || reponame == "b" {
-                        Self::out_fail()
-                    } else {
-                        Self::out_ok("")
-                    }
-                } else {
-                    Self::out_fail()
-                }
-            }
-            "config" => {
-                if args.get(1) == Some(&"--get") {
-                    let url = format!("git@github.com:acme/{reponame}.git\n");
-                    Self::out_ok(&url)
-                } else {
-                    Self::out_fail()
-                }
-            }
+            "rev-parse" => Self::run_rev_parse(&reponame, args),
+            "config" => Self::run_config(&reponame, args),
             "rev-list" => {
                 if reponame == "c" {
                     Self::out_ok("7\n")
@@ -138,17 +156,7 @@ impl GitRunner for MockGit {
                     Self::out_ok("0\n")
                 }
             }
-            "log" => {
-                if reponame == "c" {
-                    let now = 1_000_000_000u64;
-                    let earliest = now - 120_960; // 1.4 days
-                    let latest = now - 4_080; // 68 minutes
-                    let s = format!("{earliest}\n{latest}\n");
-                    Self::out_ok(&s)
-                } else {
-                    Self::out_ok("")
-                }
-            }
+            "log" => Self::run_log(&reponame),
             _ => Self::out_ok(""),
         };
         Ok(output)

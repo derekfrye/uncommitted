@@ -53,7 +53,7 @@ struct Args {
 
 #[derive(Subcommand, Debug)]
 enum Command {
-    /// Show help for git_rewrite TOML config fields
+    /// Show help for `git_rewrite` TOML config fields
     Toml,
 }
 
@@ -160,7 +160,7 @@ fn should_print_toml_help() -> bool {
         return false;
     }
     match args.next().as_deref() {
-        None | Some("--help") | Some("-h") => true,
+        None | Some("--help" | "-h") => true,
         Some(_) => false,
     }
 }
