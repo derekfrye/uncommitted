@@ -52,8 +52,7 @@ pub(crate) fn list_local_branches_with_upstream(
 
 pub(crate) fn fetch_remote(repo: &Path, git: &dyn GitRunner, remote: &str) -> bool {
     git.run_git(repo, &["fetch", "--prune", "--no-tags", remote])
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+        .is_ok_and(|o| o.status.success())
 }
 
 #[must_use]
